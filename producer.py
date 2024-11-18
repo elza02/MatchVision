@@ -27,7 +27,7 @@ for match in match_data:
 def get_standing():
     # Fetch match data from Football-data API
     url = "https://api.football-data.org/v4/competitions/PL/standings"
-    headers = {'X-Auth-Token': 'ee34a6b82918405a8490a2b9ead8f21b'}
+    headers = {'X-Auth-Token': api_key}
     response = requests.get(url, headers=headers)
     return response.json()
 
