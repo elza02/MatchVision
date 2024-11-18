@@ -10,28 +10,18 @@ with open('key.json') as config_file:
 api_key = config['api_key']
 
 
-def get_match_data():
-    # Fetch match data from Football-data API
-    url = "https://api.football-data.org/v2/competitions/PL/matches"
-    headers = {'X-Auth-Token': api_key}
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    return data['matches']
-
-match_data = get_match_data()
-
-for match in match_data:
-    producer.send('premier_league_results', match)
-
-
 def get_standing():
     # Fetch match data from Football-data API
     url = "https://api.football-data.org/v4/competitions/PL/standings"
     headers = {'X-Auth-Token': api_key}
     response = requests.get(url, headers=headers)
-    return response.json()
+    message = response.json()  # You can still use a string here
+    producer.send('football_standings', value=message)
+    producer.flush()
+    producer.close()
+    print('sent')
 
 
 
 
-producer.flush()
+get_standing()
