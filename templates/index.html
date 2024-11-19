@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Standings</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .match-of-the-day {
+            margin-bottom: 40px;
+        }
+
+        .match-of-the-day h2 {
+            font-size: 24px;
+        }
+
+        .table-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th, .table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
+        .table th {
+            background-color: #f2f2f2;
+        }
+
+        .team-logo {
+            width: 30px;
+            height: 30px;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        /* Top Scorers and Assists Section */
+.top-scorers, .top-assists {
+    margin: 20px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.top-scorers h2, .top-assists h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+/* List of players */
+.scorers-list, .assists-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Individual Player/Assist Box */
+.scorer, .assist {
+    display: flex;
+    align-items: center;
+    margin: 10px;
+    padding: 10px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    width: 90%;
+    max-width: 500px;
+}
+
+/* Team Crest */
+.team-crest {
+    width: 50px;
+    height: 50px;
+    margin-right: 15px;
+    border-radius: 50%;
+}
+
+/* Player Info */
+.player-info h3 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.player-info p {
+    font-size: 1rem;
+    color: #555;
+}
+
+    </style>
+</head>
+<body>
+
+    <!-- Match of the Day Section -->
+    <h2>Today Matches </h2>
+    {% if match_of_the_day %}
+    {% for match in match_of_the_day %}
+    <div class="match-of-the-day">
+        
+        <p>{{ match['homeTeam']['name'] }} vs {{ match['awayTeam']['name'] }}</p>
+        <p>Date: {{ match['utcDate'] }}</p>
+        <p>Status: {{ match['status'] }}</p>
+        <p>
+            <img src="{{ match['homeTeam']['crest'] }}" alt="{{ match['homeTeam']['name'] }} logo" class="team-logo">
+            {{ match['homeTeam']['name'] }} vs
+            <img src="{{ match['awayTeam']['crest'] }}" alt="{{ match['awayTeam']['name'] }} logo" class="team-logo">
+            {{ match['awayTeam']['name'] }}
+        </p>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <p>No match today.</p>
+    {% endif %}
+
+    <!-- Standings Table -->
+    <div class="table-container">
+        <h2>Premier League Standings</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>Team</th>
+                    <th>Played</th>
+                    <th>Won</th>
+                    <th>Drawn</th>
+                    <th>Lost</th>
+                    <th>Points</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in standings_data %}
+                <tr>
+                    <td>{{ team['position'] }}</td>
+                    <td>
+                        <img src="{{ team['team']['crest'] }}" alt="{{ team['team']['name'] }} logo" class="team-logo">
+                        {{ team['team']['name'] }}
+                    </td>
+                    <td>{{ team['playedGames'] }}</td>
+                    <td>{{ team['won'] }}</td>
+                    <td>{{ team['draw'] }}</td>
+                    <td>{{ team['lost'] }}</td>
+                    <td>{{ team['points'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+<!-- Top Scorers Section -->
+<div class="top-scorers">
+    <h2>Top Scorers</h2>
+    <div class="scorers-list">
+        {% for scorer in top_scorers %}
+        <div class="scorer">
+            <img src="{{ scorer['crest'] }}" alt="{{ scorer['team']['name'] }} logo" class="team-crest">
+            <div class="player-info">
+                <h3>{{ scorer['player']['name'] }}</h3>
+                <p>Goals: {{ scorer['goals'] }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Top Assists Section 
+<div class="top-assists">
+    <h2>Top Assists</h2>
+    <div class="assists-list">
+        {% for assist in top_assists %}
+        <div class="assist">
+            <img src="{{ assist['crest'] }}" alt="{{ assist['team']['name'] }} logo" class="team-crest">
+            <div class="player-info">
+                <h3>{{ assist['player']['name'] }}</h3>
+                <p>Assists: {{ assist['assists'] }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+-->
+</body>
+</html>
