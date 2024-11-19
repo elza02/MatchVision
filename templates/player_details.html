@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ player['name'] }} - Player Details</title>
+    <style>
+        /* Style for player details page */
+        .player-details {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .player-photo {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-bottom: 20px;
+        }
+
+        .player-info h2 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .player-info p {
+            margin: 10px 0;
+            font-size: 1.1rem;
+        }
+        .details-button {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .details-button:hover {
+            background-color: Red;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="player-details">
+        <!--<img src="{{ player['photo'] }}" alt="{{ player['name'] }}'s photo" class="player-photo">
+    --><div class="player-info">
+            <h2>{{ player['name'] }}</h2>
+            <p><strong>Position:</strong> {{ player['position'] }}</p>
+            <p><strong>Nationality:</strong> {{ player['nationality'] }}</p>
+            <p><strong>Date of Birth:</strong> {{ player['dateOfBirth'] }}</p>
+            <p><strong>Shirt Number:</strong> {{ player['shirtNumber'] }}</p>
+        </div>
+        <a href="/" class="details-button">Return Home</a>
+    </div>
+
+</body>
+</html>

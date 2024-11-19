@@ -1,0 +1,103 @@
+<style>
+    /* Teams list */
+.team-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    margin-top: 20px;
+}
+
+.team-card {
+    text-align: center;
+    margin: 10px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    width: 200px;
+    transition: transform 0.2s ease;
+}
+
+.team-card:hover {
+    transform: scale(1.05);
+}
+
+.team-logo {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 10px;
+}
+
+/* Team details */
+.team-details {
+    text-align: center;
+    margin: 20px;
+}
+
+.team-logo-large {
+    width: 150px;
+    height: 150px;
+    margin-bottom: 20px;
+}
+
+.squad-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;  /* Center-align the player cards */
+    gap: 20px;  /* Add space between the cards */
+}
+
+.player-card {
+    text-align: left;
+    margin: 10px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    width: 220px;
+    background-color: #f9f9f9;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;  /* Evenly space content in the card */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);  /* Slight shadow for a clean look */
+}
+
+/* View Details Button */
+.details-button {
+    padding: 5px 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;
+    cursor: pointer;
+    text-align: center;
+    margin-top: 10px;  /* Add margin to separate the button from the content */
+}
+
+.details-button:hover {
+    background-color: #0056b3;
+}
+</style>
+
+<div class="team-details">
+    <h2>{{ team['name'] }}</h2>
+    <img src="{{ team['crest'] }}" alt="{{ team['name'] }} logo" class="team-logo-large">
+    
+    <p><strong>Founded:</strong> {{ team['founded'] }}</p>
+    <p><strong>Venue:</strong> {{ team['venue'] }}</p>
+    <p><strong>Club Colors:</strong> {{ team['clubColors'] }}</p>
+    <p><a href="{{ team['website'] }}" target="_blank">Visit Team Website</a></p>
+
+    <h3>Squad</h3>
+    <div class="squad-list">
+        {% for player in team['squad'] %}
+        <div class="player-card">
+            <p><strong>{{ player['name'] }}</strong></p>
+            <p>Position: {{ player['position'] }}</p>
+            <p>Date of Birth: {{ player['dateOfBirth'] }}</p>
+            <p>Nationality: {{ player['nationality'] }}</p>
+            <!-- Move the details button inside the player card -->
+            <a href="/player/{{ player['id'] }}" class="details-button">View Player Details</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
