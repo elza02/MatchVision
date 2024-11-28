@@ -10,6 +10,7 @@ app = Flask(__name__)
 with open('key.json') as config_file:
     config = json.load(config_file)
 API_KEY = config['api_key']
+RAPID_API_KEY = config['x-rapidapi-key']
 
 # Fetch today's match
 def get_today_match():
@@ -131,7 +132,7 @@ def getFeed():
     conn = http.client.HTTPSConnection("twitter241.p.rapidapi.com")
 
     headers = {
-        'x-rapidapi-key': "0044eead19mshb6e1c674366b8c7p1d8de1jsn18af8a6884ef",
+        'x-rapidapi-key': RAPID_API_KEY,
         'x-rapidapi-host': "twitter241.p.rapidapi.com"
     }
 
