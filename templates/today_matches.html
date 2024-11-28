@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today's Matches</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .team-logo {
+            width: 50px;
+            height: 50px;
+            margin-right: 10px;
+        }
+        .match-card {
+            width: 100%;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .match-team {
+            display: flex;
+            align-items: center;
+        }
+        .match-time {
+            font-size: 20px;
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Include Navbar -->
+{% include 'navbar.html' %}
+
+<div class="container">
+    <h1 class="text-center my-4">Today's Matches</h1>
+    
+    <!-- Display matches in a styled list -->
+    {% for match in matches %}
+    <div class="match-card">
+        <div class="match-team">
+            <img src="{{ match['homeTeam']['crest'] }}" alt="{{ match['homeTeam']['name'] }} logo" class="team-logo">
+            <h5>{{ match['homeTeam']['name'] }}</h5>
+        </div>
+        <span class="match-time">{{ match['utcDate'] }}</span>
+        <div class="match-team">
+            <img src="{{ match['awayTeam']['crest'] }}" alt="{{ match['awayTeam']['name'] }} logo" class="team-logo">
+            <h5>{{ match['awayTeam']['name'] }}</h5>
+        </div>
+    </div>
+    {% else %}
+    <p>No matches today.</p>
+    {% endfor %}
+</div>
+
+<!-- Optional: Bootstrap JS and Popper.js for interactivity -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

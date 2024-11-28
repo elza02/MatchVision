@@ -2,7 +2,7 @@ from flask import Flask, render_template
 import requests
 import json
 from datetime import datetime
-
+import http 
 app = Flask(__name__)
 
 # API details
@@ -115,18 +115,74 @@ def get_player_data(player_id):
             'shirtNumber': player['shirtNumber'],
         }
 
+
+def test_data():
+    url = "https://api.football-data.org/v4/competitions/CL/standings?season=2024"
+    headers = {'X-Auth-Token': API_KEY}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        testD = response.json()
+        print(testD)
+    else:
+        print('the url dont have any data to bring')
+
+
+def getFeed():
+    conn = http.client.HTTPSConnection("twitter241.p.rapidapi.com")
+
+    headers = {
+        'x-rapidapi-key': "0044eead19mshb6e1c674366b8c7p1d8de1jsn18af8a6884ef",
+        'x-rapidapi-host': "twitter241.p.rapidapi.com"
+    }
+
+    conn.request("GET", "/user-tweets?user=330262748&count=2", headers=headers)
+
+    res = conn.getresponse()
+    data = res.read()
+    data_str = data.decode("utf-8")
+    json_data = json.loads(data_str)
+    info = json_data['result']['timeline']['instructions'][2]['entries']#[0]['content']['itemContent']['tweet_results']['result']['legacy']['retweeted_status_result']['result']['legacy']['full_text']
+    print(len(json_data))
+    return info
+# tweet_body = json_data['result']['timeline']['instructions'][2]['entries'][0]['content']['itemContent']['tweet_results']['result']['legacy']['full_text']
+# tweet_img = json_data['result']['timeline']['instructions'][2]['entries'][0]['content']['itemContent']['tweet_results']['result']['legacy']['extended_entities']['media'][0]['media_url_https']
+
+
+def get_available_leagues():
+    url = "https://api.football-data.org/v4/competitions"
+    headers = {'X-Auth-Token': API_KEY}
+    response = requests.get(url, headers=headers)
+    leagues = response.json().get('competitions', [])
+    # Filter only free leagues (you may need to check which leagues are free)
+    return leagues
+
+# @app.route('/feed')
+# def feed():
+#     info = getFeed()
+#     return render_template('feed.html', info = info)
 @app.route('/')
 def index():
     # Get today's match, standings, top scorers, and top assists
+    info = getFeed()
     match_of_the_day = get_today_match()
     standings_data = get_standings()
     top_scorers = get_top_scorers()
     # top_assists = get_top_assists()
 
     # Pass data to the template
-    return render_template('index.html', match_of_the_day=match_of_the_day, standings_data=standings_data,
-                           top_scorers=top_scorers)#    , top_assists=top_assists)
+    return render_template('index.html', info = info)#, top_assists=top_assists)
 
+@app.route('/league/<int:league_id>')
+def leagues_team(league_id):
+    # Get today's match, standings, top scorers, and top assists
+    print(league_id)
+    standings_data = get_standings()
+    top_scorers = get_top_scorers()
+    # top_assists = get_top_assists()
+
+    # Pass data to the template
+    return render_template('PL.html', standings_data=standings_data,
+                           top_scorers=top_scorers)#, top_assists=top_assists)
 
 
 # Route to display all teams
@@ -147,6 +203,33 @@ def player_details(player_id):
     # Fetch player details using player_id
     player_data = get_player_data(player_id)
     return render_template('player_details.html', player=player_data)
+
+
+
+
+
+@app.route('/test')
+def test():
+    teams_data = test_data()
+    # print(teams_data)
+    #return render_template('teams.html', teams=teams_data)
+
+
+
+@app.route('/leagues')
+def leagues():
+    # Assuming you have a function `get_available_leagues()` which fetches leagues from the API
+    leagues = get_available_leagues()
+    print(leagues)
+    return render_template('leagues.html', leagues=leagues)
+
+@app.route('/today-matches')
+def today_matches():
+    # Assuming you have a function `get_today_match()` which fetches today's matches
+    matches = get_today_match()
+    
+    return render_template('today_matches.html', matches=matches)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
