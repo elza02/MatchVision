@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: zookeeper-football-2
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2182:2181"
+    networks:
+      - app-network-2
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka-football-2
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9093"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9093
+    networks:
+      - app-network-2
+
+  kafka-init:
+    build:
+      context: ./kafka-init-scripts
+    container_name: kafka-init-2
+    depends_on:
+      - kafka
+    networks:
+      - app-network-2
+
+  python-scripts-spark:
+    build: ./python-scripts/spark-scripts
+    container_name: python-scripts-spark-2
+    volumes:
+      - ./python-scripts:/spark-scripts
+      - ./jars:/app/jars
+    environment:
+      - PYSPARK_SUBMIT_ARGS=--master local[*] pyspark-shell
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka-init
+      - mysql-db
+    networks:
+      - app-network-2
+
+  python-scripts-kafka:
+    build: ./python-scripts/kafka-scripts
+    container_name: python-scripts-kafka-2
+    volumes:
+      - ./python-scripts:/kafka-scripts
+      - ./.env:/kafka-scripts/.env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka-init
+      - mysql-db
+    networks:
+      - app-network-2
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-football-2
+    environment:
+      MYSQL_ROOT_PASSWORD: houcine
+      MYSQL_USER: houcine
+      MYSQL_PASSWORD: houcine
+      MYSQL_DATABASE: football_2
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_2:/var/lib/mysql
+    networks:
+      - app-network-2
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: redis-football-2
+    ports:
+      - "6380:6379"
+    networks:
+      - app-network-2
+
+networks:
+  app-network-2:
+    driver: bridge
+
+volumes:
+  mysql_data_2:

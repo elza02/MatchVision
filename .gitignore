@@ -1,0 +1,64 @@
+# Global exclusions
+.env
+*.log
+*.bak
+*.tmp
+*.old
+*.swp
+.DS_Store
+Thumbs.db
+
+# -------------------------------
+# Django-specific
+# -------------------------------
+__pycache__/
+*.py[cod]
+*.sqlite3
+db.sqlite3
+migrations/
+*.pot
+*.mo
+staticfiles/
+media/
+
+# -------------------------------
+# React-specific
+# -------------------------------
+node_modules/
+build/
+.cache/
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# -------------------------------
+# Docker-specific
+# -------------------------------
+.dockerignore
+*.env.docker
+*.env
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# -------------------------------
+# Logs and coverage
+# -------------------------------
+*.log
+coverage/
+.coverage
+*.out
+*.err
+
+# -------------------------------
+# Editors and IDEs
+# -------------------------------
+.idea/
+.vscode/
+*.sublime-workspace
+
+# -------------------------------
+# OS-specific
+# -------------------------------
+.DS_Store
+Thumbs.db
