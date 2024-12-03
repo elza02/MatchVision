@@ -11,3 +11,4 @@ kafka-python==2.0.2
 pyspark==3.5.0
 mysql-connector-python==8.2.0
 python-dotenv==1.0.0
+tweepy==4.14.0

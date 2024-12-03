@@ -1,12 +1,23 @@
-from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.db.models import Count, Avg, Sum, F, Q, FloatField, Case, When, Value
+# Django imports
+from django.db.models import (
+    Q, F, Count, Avg, Sum, Case, When, FloatField,
+    ExpressionWrapper, Value
+)
 from django.db.models.functions import Cast, Coalesce
-from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.utils import timezone
+
+# Rest Framework imports
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action, api_view
+from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+
+# Third-party imports
+from django_filters.rest_framework import DjangoFilterBackend
+
+# Local imports
 from .models import (
     Team, Competition, Match, PlayerStats, Player,
     MatchPrediction, TeamFormation, BettingOdds, TopScorer
@@ -14,13 +25,18 @@ from .models import (
 from .serializers import (
     TeamSerializer, CompetitionSerializer, MatchSerializer,
     PlayerStatsSerializer, MatchPredictionSerializer,
-    TeamFormationSerializer, BettingOddsSerializer, TopScorerSerializer,
     TeamDetailSerializer, MatchDetailSerializer, PlayerStatsDetailSerializer,
-    PlayerSerializer
+    PlayerSerializer, TwitterFeedSerializer, TeamFormationSerializer,
+    BettingOddsSerializer, TopScorerSerializer
 )
-from rest_framework.pagination import PageNumberPagination
-import logging
+from .services import TwitterService
+from .serializers.twitter_serializer import TwitterFeedSerializer
 
+# Twitter Integration
+from .twitter_config import get_twitter_client, get_twitter_api, safe_twitter_request
+
+# Logging setup
+import logging
 logger = logging.getLogger(__name__)
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -125,6 +141,84 @@ class CompetitionViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'country']
     
     @action(detail=True)
+    def statistics(self, request, pk=None):
+        """Get comprehensive statistics for a competition"""
+        logger.info(f"Fetching statistics for competition ID: {pk}")
+        try:
+            # Try to get the competition or return 404
+            try:
+                competition = Competition.objects.get(pk=pk)
+                logger.info(f"Found competition: {competition.name}")
+            except Competition.DoesNotExist:
+                logger.warning(f"Competition with ID {pk} not found")
+                return Response(
+                    {"error": f"Competition with ID {pk} not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get all matches for this competition
+            matches = Match.objects.filter(competition=competition)
+            logger.info(f"Found {matches.count()} matches for competition")
+            
+            # If no matches found, return empty stats
+            if not matches.exists():
+                logger.info("No matches found, returning empty stats")
+                return Response({
+                    'overall': {
+                        'totalMatches': 0,
+                        'totalGoals': 0,
+                        'averageGoalsPerMatch': 0,
+                        'homeWins': 0,
+                        'awayWins': 0,
+                        'draws': 0
+                    },
+                    'teams': [],
+                    'topScorers': []
+                })
+            
+            try:
+                # Overall statistics
+                logger.info("Calculating overall statistics")
+                overall_stats = matches.aggregate(
+                    total_matches=Count('id'),
+                    total_goals=Coalesce(Sum(F('home_team_score')), 0) + Coalesce(Sum(F('away_team_score')), 0),
+                    home_wins=Count('id', filter=Q(home_team_score__gt=F('away_team_score'))),
+                    away_wins=Count('id', filter=Q(away_team_score__gt=F('home_team_score'))),
+                    draws=Count('id', filter=Q(home_team_score=F('away_team_score')))
+                )
+                
+                # Calculate average goals per match
+                total_matches = overall_stats['total_matches']
+                total_goals = overall_stats['total_goals']
+                avg_goals = round(total_goals / total_matches, 2) if total_matches > 0 else 0
+                
+                logger.info("Successfully calculated overall statistics")
+                
+                return Response({
+                    'overall': {
+                        'totalMatches': total_matches,
+                        'totalGoals': total_goals,
+                        'averageGoalsPerMatch': avg_goals,
+                        'homeWins': overall_stats['home_wins'],
+                        'awayWins': overall_stats['away_wins'],
+                        'draws': overall_stats['draws']
+                    },
+                    'teams': [],  # Simplified for debugging
+                    'topScorers': []  # Simplified for debugging
+                })
+            
+            except Exception as calc_error:
+                logger.error(f"Error calculating statistics: {str(calc_error)}")
+                raise calc_error
+                
+        except Exception as e:
+            logger.error(f"Error in competition statistics for ID {pk}: {str(e)}")
+            return Response(
+                {"error": f"An error occurred while fetching statistics: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True)
     def standings(self, request, pk=None):
         try:
             competition = self.get_object()
@@ -222,6 +316,7 @@ class CompetitionViewSet(viewsets.ModelViewSet):
             )
     
     def _get_team_form(self, team, recent_matches):
+        """Helper method to get team's form from recent matches"""
         form = []
         for match in recent_matches:
             if match.home_team == team:
@@ -231,7 +326,7 @@ class CompetitionViewSet(viewsets.ModelViewSet):
                     form.append('L')
                 else:
                     form.append('D')
-            else:
+            else:  # Away team
                 if match.away_team_score > match.home_team_score:
                     form.append('W')
                 elif match.away_team_score < match.home_team_score:
@@ -268,12 +363,19 @@ class CompetitionViewSet(viewsets.ModelViewSet):
                 match_stats['avg_goals_per_match'] = 0
                 
             # Get top scorers
-            top_scorers = PlayerStats.objects.filter(match__competition=competition)\
-                .values('name')\
-                .annotate(
-                    goals=Sum('goals'),
-                    matches=Count('match', distinct=True)
-                ).order_by('-goals')[:5]
+            top_scorers = PlayerStats.objects.filter(
+                match__competition=competition
+            ).values(
+                'player_id',
+                'name',
+                'team__name'
+            ).annotate(
+                total_goals=Sum('goals'),
+                total_assists=Sum('assists'),
+                matches_played=Count('match', distinct=True)
+            ).filter(
+                total_goals__gt=0
+            ).order_by('-total_goals')[:5]
             
             # Get team statistics
             team_stats = {
@@ -635,24 +737,501 @@ class TopScorerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-from rest_framework.decorators import api_view
+class TwitterFeedViewSet(viewsets.ViewSet):
+    def list(self, request):
+        """
+        Get football-related tweets based on query parameters
+        """
+        try:
+            client = get_twitter_client()
+            if not client:
+                return Response(
+                    {"error": "Twitter client configuration error"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+
+            # Get query parameters
+            query = request.query_params.get('query', '')
+            category = request.query_params.get('category', '')
+            max_results = min(int(request.query_params.get('max_results', 10)), 10)
+
+            # Build search query with football-specific terms
+            search_terms = [
+                'football', 'soccer', 'FIFA', 'UEFA',
+                'premier league', 'laliga', 'bundesliga', 'serie a', 'ligue 1',
+                'champions league', 'europa league',
+                'goal', 'match', 'transfer'
+            ]
+
+            # Add category-specific terms
+            if category:
+                if category == "Transfer News":
+                    search_terms.extend(['transfer', 'sign', 'deal', 'contract', 'bid'])
+                elif category == "Match Updates":
+                    search_terms.extend(['score', 'goal', 'match', 'game', 'lineup'])
+                elif category == "Player Stats":
+                    search_terms.extend(['stats', 'performance', 'rating', 'assist'])
+                elif category == "Team News":
+                    search_terms.extend(['team', 'club', 'squad', 'injury', 'training'])
+                elif category == "Injuries":
+                    search_terms.extend(['injury', 'injured', 'recovery', 'fitness'])
+                elif category == "Highlights":
+                    search_terms.extend(['highlight', 'goal', 'save', 'skill'])
+                elif category == "Analysis":
+                    search_terms.extend(['analysis', 'tactics', 'performance', 'stats'])
+                elif category == "Predictions":
+                    search_terms.extend(['prediction', 'odds', 'preview', 'forecast'])
+
+            # Build the search query
+            base_query = query if query else ' OR '.join(search_terms[:3])  # Use first 3 terms as default
+            search_query = f"({base_query})"
+
+            # Add language and filter parameters
+            search_query += " lang:en -is:retweet"
+            
+            # Add engagement filters to get higher quality tweets
+            search_query += " min_faves:10"  # Tweets with at least 10 likes
+
+            # Get tweets with rate limiting
+            tweets = safe_twitter_request(
+                'search_tweets',
+                client.search_recent_tweets,
+                query=search_query,
+                max_results=max_results,
+                tweet_fields=['created_at', 'public_metrics', 'entities', 'context_annotations'],
+                expansions=['author_id'],
+                user_fields=['username', 'name', 'profile_image_url']
+            )
+
+            if not tweets or not tweets.data:
+                return Response({"results": []})
+
+            # Create user lookup dictionary
+            users = {user.id: user for user in tweets.includes['users']} if 'users' in tweets.includes else {}
+
+            # Format tweets with enhanced information
+            formatted_tweets = []
+            for tweet in tweets.data:
+                # Get user information
+                author = users.get(tweet.author_id, {})
+                
+                # Check if tweet has football-related context
+                is_football_related = False
+                if hasattr(tweet, 'context_annotations'):
+                    for context in tweet.context_annotations:
+                        if any(term in context.entity.name.lower() for term in ['sport', 'football', 'soccer']):
+                            is_football_related = True
+                            break
+
+                # Only include football-related tweets
+                if is_football_related or any(term.lower() in tweet.text.lower() for term in search_terms):
+                    tweet_data = {
+                        'id': tweet.id,
+                        'text': tweet.text,
+                        'created_at': tweet.created_at,
+                        'metrics': tweet.public_metrics,
+                        'hashtags': [tag['tag'] for tag in tweet.entities['hashtags']] if tweet.entities and 'hashtags' in tweet.entities else [],
+                        'author': {
+                            'id': author.id if author else None,
+                            'username': author.username if author else None,
+                            'name': author.name if author else None,
+                            'profile_image_url': author.profile_image_url if author else None
+                        }
+                    }
+                    formatted_tweets.append(tweet_data)
+
+            return Response({
+                "results": formatted_tweets,
+                "meta": {
+                    "result_count": len(formatted_tweets),
+                    "newest_id": tweets.meta.get("newest_id"),
+                    "oldest_id": tweets.meta.get("oldest_id"),
+                    "search_query": search_query  # Include the search query for debugging
+                }
+            })
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """
+        Get predefined tweet categories
+        """
+        categories = [
+            "Transfer News",
+            "Match Updates",
+            "Player Stats",
+            "Team News",
+            "Injuries",
+            "Highlights",
+            "Analysis",
+            "Predictions"
+        ]
+        return Response({"results": categories})
+
+    @action(detail=False, methods=['get'])
+    def trending(self, request):
+        """
+        Get trending football topics
+        """
+        try:
+            api = get_twitter_api()
+            if not api:
+                return Response(
+                    {"error": "Twitter API configuration error"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+
+            # Get worldwide trends with rate limiting
+            trends = safe_twitter_request(
+                'get_trends',
+                api.get_place_trends,
+                1  # 1 is the woeid for worldwide
+            )
+            
+            # Filter football-related trends
+            football_terms = ['football', 'soccer', 'goal', 'match', 'player', 'team', 
+                            'league', 'cup', 'transfer', 'stadium', 'coach', 'manager']
+            
+            football_trends = []
+            for trend in trends[0]['trends']:
+                trend_name = trend['name'].lower()
+                if any(term in trend_name for term in football_terms):
+                    football_trends.append({
+                        'name': trend['name'],
+                        'url': trend['url'],
+                        'tweet_volume': trend['tweet_volume']
+                    })
+
+            return Response({
+                "results": football_trends[:10],  # Return top 10 football trends
+                "meta": {
+                    "result_count": len(football_trends[:10]),
+                    "timestamp": trends[0]['created_at'] if trends[0].get('created_at') else None
+                }
+            })
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class AnalyticsViewSet(viewsets.ViewSet):
+    def get_competition_analytics(self, request, competition_id):
+        """Get analytics data for a specific competition"""
+        try:
+            # First check if competition exists
+            try:
+                competition = Competition.objects.get(id=competition_id)
+            except Competition.DoesNotExist:
+                return Response(
+                    {"error": f"Competition with ID {competition_id} not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Get matches for the competition with related teams
+            matches = list(Match.objects.filter(
+                competition=competition
+            ).select_related(
+                'home_team', 'away_team'
+            ).order_by('-match_date')[:10])
+
+            if not matches:
+                return Response({
+                    "match_analytics": [],
+                    "top_scorers": [],
+                    "standings": [],
+                    "message": f"No matches found for competition {competition.name}"
+                })
+
+            # Get teams in the competition
+            team_ids = set()
+            for match in matches:
+                team_ids.add(match.home_team_id)
+                team_ids.add(match.away_team_id)
+            teams = Team.objects.filter(id__in=team_ids)
+
+            # Get players in these teams
+            players = Player.objects.filter(team__in=teams).select_related('team')
+
+            # Calculate match analytics
+            match_analytics = []
+            for match in matches:
+                match_analytics.append({
+                    'match_date': match.match_date,
+                    'home_team': match.home_team.name,
+                    'away_team': match.away_team.name,
+                    'home_team_score': match.home_team_score or 0,
+                    'away_team_score': match.away_team_score or 0,
+                    'total_goals': (match.home_team_score or 0) + (match.away_team_score or 0),
+                    'winner': match.home_team.name if match.home_team_score > match.away_team_score 
+                            else match.away_team.name if match.away_team_score > match.home_team_score 
+                            else 'Draw'
+                })
+
+            # Calculate top scorers using annotations
+            top_scorers = []
+            for player in players:
+                goals_count = Goal.objects.filter(scorer=player, match__in=matches).count()
+                assists_count = Goal.objects.filter(assistant=player, match__in=matches).count()
+                
+                if goals_count > 0 or assists_count > 0:
+                    top_scorers.append({
+                        'player_id': player.id,
+                        'player_name': player.name,
+                        'team': player.team.name,
+                        'goals': goals_count,
+                        'assists': assists_count
+                    })
+
+            # Sort by goals, then assists
+            top_scorers.sort(key=lambda x: (x['goals'], x['assists']), reverse=True)
+
+            # Calculate team standings
+            standings = []
+            for team in teams:
+                # Initialize counters
+                won = draw = lost = goals_for = goals_against = 0
+                
+                # Calculate stats from matches list
+                team_matches = [m for m in matches if m.home_team_id == team.id or m.away_team_id == team.id]
+                
+                for match in team_matches:
+                    if match.home_team_id == team.id:
+                        goals_for += match.home_team_score or 0
+                        goals_against += match.away_team_score or 0
+                        if match.home_team_score > match.away_team_score:
+                            won += 1
+                        elif match.home_team_score < match.away_team_score:
+                            lost += 1
+                        else:
+                            draw += 1
+                    else:  # away team
+                        goals_for += match.away_team_score or 0
+                        goals_against += match.home_team_score or 0
+                        if match.away_team_score > match.home_team_score:
+                            won += 1
+                        elif match.away_team_score < match.home_team_score:
+                            lost += 1
+                        else:
+                            draw += 1
+
+                matches_played = won + draw + lost
+                points = won * 3 + draw
+                goal_difference = goals_for - goals_against
+
+                if matches_played > 0:
+                    standings.append({
+                        'team_id': team.id,
+                        'team_name': team.name,
+                        'matches_played': matches_played,
+                        'won': won,
+                        'drawn': draw,
+                        'lost': lost,
+                        'goals_for': goals_for,
+                        'goals_against': goals_against,
+                        'goal_difference': goal_difference,
+                        'points': points,
+                    })
+
+            # Sort standings by points, then goal difference
+            standings.sort(key=lambda x: (x['points'], x['goal_difference']), reverse=True)
+
+            return Response({
+                'competition': {
+                    'id': competition.id,
+                    'name': competition.name,
+                    'area': competition.area
+                },
+                'match_analytics': match_analytics,
+                'top_scorers': top_scorers[:10],  # Top 10 scorers
+                'standings': standings
+            })
+
+        except Exception as e:
+            logger.error(f"Error in get_competition_analytics for competition {competition_id}: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get_team_analytics(self, request, team_id):
+        """Get analytics data for a specific team"""
+        try:
+            team = Team.objects.get(id=team_id)
+            matches = Match.objects.filter(Q(home_team=team) | Q(away_team=team)).order_by('-match_date')[:10]
+            
+            match_analytics = []
+            for match in matches:
+                is_home = match.home_team == team
+                match_analytics.append({
+                    'match_date': match.match_date,
+                    'opponent': match.away_team.name if is_home else match.home_team.name,
+                    'goals_scored': match.home_team_score if is_home else match.away_team_score,
+                    'goals_conceded': match.away_team_score if is_home else match.home_team_score,
+                    'result': 'W' if (is_home and match.home_team_score > match.away_team_score) or
+                                   (not is_home and match.away_team_score > match.home_team_score)
+                             else 'L' if (is_home and match.home_team_score < match.away_team_score) or
+                                       (not is_home and match.away_team_score < match.home_team_score)
+                             else 'D'
+                })
+            
+            return Response({
+                'team_name': team.name,
+                'match_analytics': match_analytics
+            })
+            
+        except Team.DoesNotExist:
+            return Response(
+                {'error': 'Team not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error in get_team_analytics for team {team_id}: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get_player_analytics(self, request, player_id):
+        """Get analytics data for a specific player"""
+        try:
+            player = Player.objects.get(id=player_id)
+            goals = Goal.objects.filter(scorer=player)
+            assists = Goal.objects.filter(assistant=player)
+            
+            matches_played = Match.objects.filter(
+                Q(home_team=player.team) | Q(away_team=player.team)
+            ).count()
+            
+            return Response({
+                'player_name': player.name,
+                'team': player.team.name,
+                'matches_played': matches_played,
+                'goals': goals.count(),
+                'assists': assists.count(),
+                'goals_per_match': round(goals.count() / matches_played if matches_played > 0 else 0, 2)
+            })
+            
+        except Player.DoesNotExist:
+            return Response(
+                {'error': 'Player not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error in get_player_analytics for player {player_id}: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+def get_team_form(team, matches_count=5):
+    """Helper function to get team's recent form"""
+    recent_matches = Match.objects.filter(
+        Q(home_team=team) | Q(away_team=team),
+        status='FINISHED'
+    ).order_by('-match_date')[:matches_count]
+    
+    form = []
+    for match in recent_matches:
+        if match.home_team == team:
+            if match.home_team_score > match.away_team_score:
+                form.append('W')
+            elif match.home_team_score < match.away_team_score:
+                form.append('L')
+            else:
+                form.append('D')
+        else:  # Away team
+            if match.away_team_score > match.home_team_score:
+                form.append('W')
+            elif match.away_team_score < match.home_team_score:
+                form.append('L')
+            else:
+                form.append('D')
+    return form
 
 @api_view(['GET'])
 def dashboard_stats(request):
-    """
-    Get aggregated dashboard statistics
-    """
+    """Get aggregated dashboard statistics with enhanced metrics"""
     try:
+        # Basic counts with proper null handling
         total_matches = Match.objects.count()
         total_teams = Team.objects.count()
         total_players = Player.objects.count()
-
+        
+        # Recent match statistics
+        recent_matches = Match.objects.filter(
+            status='FINISHED'
+        ).order_by('-match_date')[:10]
+        
+        avg_goals = recent_matches.aggregate(
+            avg_goals=Coalesce(
+                ExpressionWrapper(
+                    (Avg('home_team_score') + Avg('away_team_score')) / 2,
+                    output_field=FloatField()
+                ),
+                0
+            )
+        )['avg_goals']
+        
+        # League performance metrics
+        league_stats = Competition.objects.annotate(
+            match_count=Count('match'),
+            avg_goals=Coalesce(
+                ExpressionWrapper(
+                    Avg(F('match__home_team_score') + F('match__away_team_score')),
+                    output_field=FloatField()
+                ),
+                0
+            ),
+            total_teams=Count('match__home_team', distinct=True)
+        ).filter(
+            match_count__gt=0
+        ).order_by('-match_count')[:5]
+        
+        # Team form analysis
+        team_forms = Team.objects.annotate(
+            recent_wins=Count(
+                'home_matches',
+                filter=Q(
+                    home_matches__status='FINISHED',
+                    home_matches__home_team_score__gt=F('home_matches__away_team_score')
+                )
+            ) + Count(
+                'away_matches',
+                filter=Q(
+                    away_matches__status='FINISHED',
+                    away_matches__away_team_score__gt=F('away_matches__home_team_score')
+                )
+            )
+        ).order_by('-recent_wins')[:5]
+        
         return Response({
-            'totalMatches': total_matches,
-            'totalTeams': total_teams,
-            'totalPlayers': total_players,
+            'overview': {
+                'totalMatches': total_matches,
+                'totalTeams': total_teams,
+                'totalPlayers': total_players,
+                'averageGoalsPerMatch': round(float(avg_goals), 2) if avg_goals else 0
+            },
+            'leaguePerformance': [{
+                'name': comp.name,
+                'matchCount': comp.match_count,
+                'averageGoals': round(float(comp.avg_goals), 2),
+                'totalTeams': comp.total_teams
+            } for comp in league_stats],
+            'topTeams': [{
+                'name': team.name,
+                'recentWins': team.recent_wins,
+                'crest': team.crest
+            } for team in team_forms],
         })
     except Exception as e:
+        logger.error(f"Error in dashboard_stats: {str(e)}")
         return Response(
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -660,30 +1239,73 @@ def dashboard_stats(request):
 
 @api_view(['GET'])
 def dashboard_upcoming_matches(request):
-    """
-    Get upcoming matches for dashboard
-    """
+    """Get upcoming matches for dashboard with enhanced match details"""
     try:
         upcoming_matches = Match.objects.filter(
-            status='SCHEDULED'
+            status='SCHEDULED',
+            match_date__gte=timezone.now()
         ).select_related(
             'home_team',
             'away_team',
             'competition'
         ).order_by('match_date')[:5]
 
-        matches_data = [{
-            'id': match.id,
-            'homeTeam': match.home_team.name,
-            'awayTeam': match.away_team.name,
-            'date': match.match_date,
-            'competition': match.competition.name,
-        } for match in upcoming_matches]
+        matches_data = []
+        for match in upcoming_matches:
+            # Get team forms
+            home_form = get_team_form(match.home_team)
+            away_form = get_team_form(match.away_team)
+            
+            # Get head-to-head history
+            h2h = Match.objects.filter(
+                status='FINISHED'
+            ).filter(
+                Q(
+                    home_team=match.home_team,
+                    away_team=match.away_team
+                ) | Q(
+                    home_team=match.away_team,
+                    away_team=match.home_team
+                )
+            ).order_by('-match_date')[:5]
+            
+            h2h_summary = {
+                'home_wins': sum(1 for m in h2h if 
+                    (m.home_team == match.home_team and m.home_team_score > m.away_team_score) or
+                    (m.away_team == match.home_team and m.away_team_score > m.home_team_score)
+                ),
+                'away_wins': sum(1 for m in h2h if 
+                    (m.home_team == match.away_team and m.home_team_score > m.away_team_score) or
+                    (m.away_team == match.away_team and m.away_team_score > m.home_team_score)
+                ),
+                'draws': sum(1 for m in h2h if m.home_team_score == m.away_team_score)
+            }
+            
+            matches_data.append({
+                'id': match.id,
+                'homeTeam': {
+                    'name': match.home_team.name,
+                    'crest': match.home_team.crest,
+                    'form': home_form
+                },
+                'awayTeam': {
+                    'name': match.away_team.name,
+                    'crest': match.away_team.crest,
+                    'form': away_form
+                },
+                'date': match.match_date,
+                'competition': {
+                    'name': match.competition.name,
+                    'code': match.competition.code
+                },
+                'headToHead': h2h_summary
+            })
 
         return Response({
             'upcomingMatches': matches_data
         })
     except Exception as e:
+        logger.error(f"Error in dashboard_upcoming_matches: {str(e)}")
         return Response(
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -691,25 +1313,51 @@ def dashboard_upcoming_matches(request):
 
 @api_view(['GET'])
 def dashboard_top_scorers(request):
-    """
-    Get top scorers for dashboard
-    """
+    """Get top scorers for dashboard with enhanced player statistics"""
     try:
-        top_scorers = PlayerStats.objects.select_related(
-            'team'
-        ).order_by('-goals')[:5]
+        top_scorers = PlayerStats.objects.values(
+            'player_id',
+            'name',
+            'team__name',
+            'team__crest'
+        ).annotate(
+            total_goals=Sum('goals'),
+            total_assists=Sum('assists'),
+            matches_played=Count('match_id', distinct=True)
+        ).annotate(
+            goals_per_match=ExpressionWrapper(
+                Cast('total_goals', FloatField()) / Cast('matches_played', FloatField()),
+                output_field=FloatField()
+            ),
+            minutes_per_goal=Case(
+                When(total_goals__gt=0, 
+                     then=Cast(Sum('minutes_played'), FloatField()) / Cast('total_goals', FloatField())),
+                default=None,
+                output_field=FloatField()
+            )
+        ).filter(
+            total_goals__gt=0
+        ).order_by('-total_goals')[:10]
 
         scorers_data = [{
-            'playerId': stats.player_id,
-            'playerName': stats.name,
-            'team': stats.team.name,
-            'goals': stats.goals,
-        } for stats in top_scorers]
+            'playerId': scorer['player_id'],
+            'playerName': scorer['name'],
+            'team': scorer['team__name'],
+            'teamCrest': scorer['team__crest'],
+            'stats': {
+                'goals': scorer['total_goals'],
+                'assists': scorer['total_assists'],
+                'matchesPlayed': scorer['matches_played'],
+                'goalsPerMatch': round(scorer['goals_per_match'], 2) if scorer['goals_per_match'] else 0,
+                'minutesPerGoal': round(scorer['minutes_per_goal'], 2) if scorer['minutes_per_goal'] else None
+            }
+        } for scorer in top_scorers]
 
         return Response({
             'topScorers': scorers_data
         })
     except Exception as e:
+        logger.error(f"Error in dashboard_top_scorers: {str(e)}")
         return Response(
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

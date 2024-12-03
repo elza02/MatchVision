@@ -119,27 +119,21 @@ def create_sample_data():
             # Home team players
             for player in Player.objects.filter(team=home_team)[:5]:  # Only create stats for 5 players
                 PlayerStats.objects.create(
-                    player_id=len(PlayerStats.objects.all()) + 1,
-                    name=player.name,
-                    position=player.position,
+                    player=player,
+                    match=match,
                     goals=random.randint(0, 2),
                     assists=random.randint(0, 2),
-                    minutes_played=random.randint(45, 90),
-                    team=home_team,
-                    match=match
+                    minutes_played=random.randint(45, 90)
                 )
             
             # Away team players
             for player in Player.objects.filter(team=away_team)[:5]:
                 PlayerStats.objects.create(
-                    player_id=len(PlayerStats.objects.all()) + 1,
-                    name=player.name,
-                    position=player.position,
+                    player=player,
+                    match=match,
                     goals=random.randint(0, 2),
                     assists=random.randint(0, 2),
-                    minutes_played=random.randint(45, 90),
-                    team=away_team,
-                    match=match
+                    minutes_played=random.randint(45, 90)
                 )
             print(f"Created player stats for match: {match}")
 
