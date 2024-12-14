@@ -117,11 +117,11 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'football',
+        'NAME': 'football_2',
         'USER': 'houcine',
         'PASSWORD': 'houcine',
         'HOST': 'localhost',  
-        'PORT': '3306',      
+        'PORT': '3307',  
     }
 }
 

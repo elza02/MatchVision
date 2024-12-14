@@ -1,6 +1,8 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DateType
 from pyspark.sql.functions import col, from_json, regexp_replace, to_timestamp, trim
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import TopicAlreadyExistsError
 import mysql.connector
 import logging
 
@@ -23,6 +25,35 @@ TOPICS = {
     "team_formations": "team-formations-topic",
     "betting_odds": "betting-odds-topic"
 }
+
+# Kafka Admin Functionality
+def ensure_kafka_topics(broker, topics):
+    """
+    Ensure that the Kafka topics exist; create them if they do not.
+    """
+    admin_client = KafkaAdminClient(bootstrap_servers=broker)
+    existing_topics = admin_client.list_topics()
+    topics_to_create = []
+
+    for topic in topics.values():
+        if topic not in existing_topics:
+            topics_to_create.append(NewTopic(name=topic, num_partitions=1, replication_factor=1))
+
+    if topics_to_create:
+        try:
+            admin_client.create_topics(new_topics=topics_to_create, validate_only=False)
+            logging.info(f"Created topics: {[topic.name for topic in topics_to_create]}")
+        except TopicAlreadyExistsError:
+            logging.warning("Some topics already exist. Skipping creation.")
+        except Exception as e:
+            logging.error(f"Error creating topics: {e}")
+    else:
+        logging.info("All topics already exist.")
+
+    admin_client.close()
+
+# Ensure Kafka topics exist
+ensure_kafka_topics(KAFKA_BROKER, TOPICS)
 
 # Spark Session Initialization
 spark = SparkSession.builder \
