@@ -26,14 +26,16 @@ from .serializers import (
     TeamSerializer, CompetitionSerializer, MatchSerializer,
     PlayerStatsSerializer, MatchPredictionSerializer,
     TeamDetailSerializer, MatchDetailSerializer, PlayerStatsDetailSerializer,
-    PlayerSerializer, TwitterFeedSerializer, TeamFormationSerializer,
+    PlayerSerializer,
+    # TwitterFeedSerializer,
+    TeamFormationSerializer,
     BettingOddsSerializer, TopScorerSerializer
 )
-from .services import TwitterService
-from .serializers.twitter_serializer import TwitterFeedSerializer
+# from .services import TwitterService
+# from .serializers.twitter_serializer import TwitterFeedSerializer
 
 # Twitter Integration
-from .twitter_config import get_twitter_client, get_twitter_api, safe_twitter_request
+# from .twitter_config import get_twitter_client, get_twitter_api, safe_twitter_request
 
 # Logging setup
 import logging
@@ -737,189 +739,189 @@ class TopScorerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class TwitterFeedViewSet(viewsets.ViewSet):
-    def list(self, request):
-        """
-        Get football-related tweets based on query parameters
-        """
-        try:
-            client = get_twitter_client()
-            if not client:
-                return Response(
-                    {"error": "Twitter client configuration error"},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
-                )
+# class TwitterFeedViewSet(viewsets.ViewSet):
+#     def list(self, request):
+#         """
+#         Get football-related tweets based on query parameters
+#         """
+#         try:
+#             client = get_twitter_client()
+#             if not client:
+#                 return Response(
+#                     {"error": "Twitter client configuration error"},
+#                     status=status.HTTP_503_SERVICE_UNAVAILABLE
+#                 )
 
-            # Get query parameters
-            query = request.query_params.get('query', '')
-            category = request.query_params.get('category', '')
-            max_results = min(int(request.query_params.get('max_results', 10)), 10)
+#             # Get query parameters
+#             query = request.query_params.get('query', '')
+#             category = request.query_params.get('category', '')
+#             max_results = min(int(request.query_params.get('max_results', 10)), 10)
 
-            # Build search query with football-specific terms
-            search_terms = [
-                'football', 'soccer', 'FIFA', 'UEFA',
-                'premier league', 'laliga', 'bundesliga', 'serie a', 'ligue 1',
-                'champions league', 'europa league',
-                'goal', 'match', 'transfer'
-            ]
+#             # Build search query with football-specific terms
+#             search_terms = [
+#                 'football', 'soccer', 'FIFA', 'UEFA',
+#                 'premier league', 'laliga', 'bundesliga', 'serie a', 'ligue 1',
+#                 'champions league', 'europa league',
+#                 'goal', 'match', 'transfer'
+#             ]
 
-            # Add category-specific terms
-            if category:
-                if category == "Transfer News":
-                    search_terms.extend(['transfer', 'sign', 'deal', 'contract', 'bid'])
-                elif category == "Match Updates":
-                    search_terms.extend(['score', 'goal', 'match', 'game', 'lineup'])
-                elif category == "Player Stats":
-                    search_terms.extend(['stats', 'performance', 'rating', 'assist'])
-                elif category == "Team News":
-                    search_terms.extend(['team', 'club', 'squad', 'injury', 'training'])
-                elif category == "Injuries":
-                    search_terms.extend(['injury', 'injured', 'recovery', 'fitness'])
-                elif category == "Highlights":
-                    search_terms.extend(['highlight', 'goal', 'save', 'skill'])
-                elif category == "Analysis":
-                    search_terms.extend(['analysis', 'tactics', 'performance', 'stats'])
-                elif category == "Predictions":
-                    search_terms.extend(['prediction', 'odds', 'preview', 'forecast'])
+#             # Add category-specific terms
+#             if category:
+#                 if category == "Transfer News":
+#                     search_terms.extend(['transfer', 'sign', 'deal', 'contract', 'bid'])
+#                 elif category == "Match Updates":
+#                     search_terms.extend(['score', 'goal', 'match', 'game', 'lineup'])
+#                 elif category == "Player Stats":
+#                     search_terms.extend(['stats', 'performance', 'rating', 'assist'])
+#                 elif category == "Team News":
+#                     search_terms.extend(['team', 'club', 'squad', 'injury', 'training'])
+#                 elif category == "Injuries":
+#                     search_terms.extend(['injury', 'injured', 'recovery', 'fitness'])
+#                 elif category == "Highlights":
+#                     search_terms.extend(['highlight', 'goal', 'save', 'skill'])
+#                 elif category == "Analysis":
+#                     search_terms.extend(['analysis', 'tactics', 'performance', 'stats'])
+#                 elif category == "Predictions":
+#                     search_terms.extend(['prediction', 'odds', 'preview', 'forecast'])
 
-            # Build the search query
-            base_query = query if query else ' OR '.join(search_terms[:3])  # Use first 3 terms as default
-            search_query = f"({base_query})"
+#             # Build the search query
+#             base_query = query if query else ' OR '.join(search_terms[:3])  # Use first 3 terms as default
+#             search_query = f"({base_query})"
 
-            # Add language and filter parameters
-            search_query += " lang:en -is:retweet"
+#             # Add language and filter parameters
+#             search_query += " lang:en -is:retweet"
             
-            # Add engagement filters to get higher quality tweets
-            search_query += " min_faves:10"  # Tweets with at least 10 likes
+#             # Add engagement filters to get higher quality tweets
+#             search_query += " min_faves:10"  # Tweets with at least 10 likes
 
-            # Get tweets with rate limiting
-            tweets = safe_twitter_request(
-                'search_tweets',
-                client.search_recent_tweets,
-                query=search_query,
-                max_results=max_results,
-                tweet_fields=['created_at', 'public_metrics', 'entities', 'context_annotations'],
-                expansions=['author_id'],
-                user_fields=['username', 'name', 'profile_image_url']
-            )
+#             # Get tweets with rate limiting
+#             tweets = safe_twitter_request(
+#                 'search_tweets',
+#                 client.search_recent_tweets,
+#                 query=search_query,
+#                 max_results=max_results,
+#                 tweet_fields=['created_at', 'public_metrics', 'entities', 'context_annotations'],
+#                 expansions=['author_id'],
+#                 user_fields=['username', 'name', 'profile_image_url']
+#             )
 
-            if not tweets or not tweets.data:
-                return Response({"results": []})
+#             if not tweets or not tweets.data:
+#                 return Response({"results": []})
 
-            # Create user lookup dictionary
-            users = {user.id: user for user in tweets.includes['users']} if 'users' in tweets.includes else {}
+#             # Create user lookup dictionary
+#             users = {user.id: user for user in tweets.includes['users']} if 'users' in tweets.includes else {}
 
-            # Format tweets with enhanced information
-            formatted_tweets = []
-            for tweet in tweets.data:
-                # Get user information
-                author = users.get(tweet.author_id, {})
+#             # Format tweets with enhanced information
+#             formatted_tweets = []
+#             for tweet in tweets.data:
+#                 # Get user information
+#                 author = users.get(tweet.author_id, {})
                 
-                # Check if tweet has football-related context
-                is_football_related = False
-                if hasattr(tweet, 'context_annotations'):
-                    for context in tweet.context_annotations:
-                        if any(term in context.entity.name.lower() for term in ['sport', 'football', 'soccer']):
-                            is_football_related = True
-                            break
+#                 # Check if tweet has football-related context
+#                 is_football_related = False
+#                 if hasattr(tweet, 'context_annotations'):
+#                     for context in tweet.context_annotations:
+#                         if any(term in context.entity.name.lower() for term in ['sport', 'football', 'soccer']):
+#                             is_football_related = True
+#                             break
 
-                # Only include football-related tweets
-                if is_football_related or any(term.lower() in tweet.text.lower() for term in search_terms):
-                    tweet_data = {
-                        'id': tweet.id,
-                        'text': tweet.text,
-                        'created_at': tweet.created_at,
-                        'metrics': tweet.public_metrics,
-                        'hashtags': [tag['tag'] for tag in tweet.entities['hashtags']] if tweet.entities and 'hashtags' in tweet.entities else [],
-                        'author': {
-                            'id': author.id if author else None,
-                            'username': author.username if author else None,
-                            'name': author.name if author else None,
-                            'profile_image_url': author.profile_image_url if author else None
-                        }
-                    }
-                    formatted_tweets.append(tweet_data)
+#                 # Only include football-related tweets
+#                 if is_football_related or any(term.lower() in tweet.text.lower() for term in search_terms):
+#                     tweet_data = {
+#                         'id': tweet.id,
+#                         'text': tweet.text,
+#                         'created_at': tweet.created_at,
+#                         'metrics': tweet.public_metrics,
+#                         'hashtags': [tag['tag'] for tag in tweet.entities['hashtags']] if tweet.entities and 'hashtags' in tweet.entities else [],
+#                         'author': {
+#                             'id': author.id if author else None,
+#                             'username': author.username if author else None,
+#                             'name': author.name if author else None,
+#                             'profile_image_url': author.profile_image_url if author else None
+#                         }
+#                     }
+#                     formatted_tweets.append(tweet_data)
 
-            return Response({
-                "results": formatted_tweets,
-                "meta": {
-                    "result_count": len(formatted_tweets),
-                    "newest_id": tweets.meta.get("newest_id"),
-                    "oldest_id": tweets.meta.get("oldest_id"),
-                    "search_query": search_query  # Include the search query for debugging
-                }
-            })
+#             return Response({
+#                 "results": formatted_tweets,
+#                 "meta": {
+#                     "result_count": len(formatted_tweets),
+#                     "newest_id": tweets.meta.get("newest_id"),
+#                     "oldest_id": tweets.meta.get("oldest_id"),
+#                     "search_query": search_query  # Include the search query for debugging
+#                 }
+#             })
 
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+#         except Exception as e:
+#             return Response(
+#                 {"error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
-    @action(detail=False, methods=['get'])
-    def categories(self, request):
-        """
-        Get predefined tweet categories
-        """
-        categories = [
-            "Transfer News",
-            "Match Updates",
-            "Player Stats",
-            "Team News",
-            "Injuries",
-            "Highlights",
-            "Analysis",
-            "Predictions"
-        ]
-        return Response({"results": categories})
+#     @action(detail=False, methods=['get'])
+#     def categories(self, request):
+#         """
+#         Get predefined tweet categories
+#         """
+#         categories = [
+#             "Transfer News",
+#             "Match Updates",
+#             "Player Stats",
+#             "Team News",
+#             "Injuries",
+#             "Highlights",
+#             "Analysis",
+#             "Predictions"
+#         ]
+#         return Response({"results": categories})
 
-    @action(detail=False, methods=['get'])
-    def trending(self, request):
-        """
-        Get trending football topics
-        """
-        try:
-            api = get_twitter_api()
-            if not api:
-                return Response(
-                    {"error": "Twitter API configuration error"},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
-                )
+#     @action(detail=False, methods=['get'])
+#     def trending(self, request):
+#         """
+#         Get trending football topics
+#         """
+#         try:
+#             api = get_twitter_api()
+#             if not api:
+#                 return Response(
+#                     {"error": "Twitter API configuration error"},
+#                     status=status.HTTP_503_SERVICE_UNAVAILABLE
+#                 )
 
-            # Get worldwide trends with rate limiting
-            trends = safe_twitter_request(
-                'get_trends',
-                api.get_place_trends,
-                1  # 1 is the woeid for worldwide
-            )
+#             # Get worldwide trends with rate limiting
+#             trends = safe_twitter_request(
+#                 'get_trends',
+#                 api.get_place_trends,
+#                 1  # 1 is the woeid for worldwide
+#             )
             
-            # Filter football-related trends
-            football_terms = ['football', 'soccer', 'goal', 'match', 'player', 'team', 
-                            'league', 'cup', 'transfer', 'stadium', 'coach', 'manager']
+#             # Filter football-related trends
+#             football_terms = ['football', 'soccer', 'goal', 'match', 'player', 'team', 
+#                             'league', 'cup', 'transfer', 'stadium', 'coach', 'manager']
             
-            football_trends = []
-            for trend in trends[0]['trends']:
-                trend_name = trend['name'].lower()
-                if any(term in trend_name for term in football_terms):
-                    football_trends.append({
-                        'name': trend['name'],
-                        'url': trend['url'],
-                        'tweet_volume': trend['tweet_volume']
-                    })
+#             football_trends = []
+#             for trend in trends[0]['trends']:
+#                 trend_name = trend['name'].lower()
+#                 if any(term in trend_name for term in football_terms):
+#                     football_trends.append({
+#                         'name': trend['name'],
+#                         'url': trend['url'],
+#                         'tweet_volume': trend['tweet_volume']
+#                     })
 
-            return Response({
-                "results": football_trends[:10],  # Return top 10 football trends
-                "meta": {
-                    "result_count": len(football_trends[:10]),
-                    "timestamp": trends[0]['created_at'] if trends[0].get('created_at') else None
-                }
-            })
+#             return Response({
+#                 "results": football_trends[:10],  # Return top 10 football trends
+#                 "meta": {
+#                     "result_count": len(football_trends[:10]),
+#                     "timestamp": trends[0]['created_at'] if trends[0].get('created_at') else None
+#                 }
+#             })
 
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+#         except Exception as e:
+#             return Response(
+#                 {"error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
 class AnalyticsViewSet(viewsets.ViewSet):
     def get_competition_analytics(self, request, competition_id):

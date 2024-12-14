@@ -5,7 +5,8 @@ from .views import (
     PlayerStatsViewSet, MatchPredictionViewSet, PlayerViewSet,
     TeamFormationViewSet, BettingOddsViewSet, TopScorerViewSet,
     dashboard_stats, dashboard_upcoming_matches, dashboard_top_scorers,
-    TwitterFeedViewSet, AnalyticsViewSet
+    # TwitterFeedViewSet,
+    AnalyticsViewSet
 )
 
 # Create a router and register our viewsets with it.
@@ -23,7 +24,7 @@ router.register(r'betting-odds', BettingOddsViewSet)
 router.register(r'top-scorers', TopScorerViewSet)
 
 # Register Twitter viewset separately
-router.register(r'twitter', TwitterFeedViewSet, basename='twitter')
+# router.register(r'twitter', TwitterFeedViewSet, basename='twitter')
 
 # Analytics URLs
 router.register(r'analytics', AnalyticsViewSet, basename='analytics')
