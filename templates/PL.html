@@ -152,6 +152,7 @@
         <!-- Top Scorers Section -->
         <div class="top-scorers">
             <h2>Top Scorers</h2>
+            {% if top_scorers != '404'%}
             <div class="scorers-list">
                 {% for scorer in top_scorers %}
                 <div class="scorer">
@@ -163,7 +164,8 @@
                 </div>
                 {% endfor %}
             </div>
-        </div>
+            {% endif %}
+        </div> 
 
         <!-- Top Assists Section (if needed) -->
         <!-- 

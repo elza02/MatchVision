@@ -3,6 +3,10 @@ import requests
 import json
 from datetime import datetime
 import http 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
 app = Flask(__name__)
 
 # API details
@@ -32,29 +36,48 @@ def get_today_match():
     else:
         return None
 
+
+def get_league_code_by_id(league_id):
+    url = f"https://api.football-data.org/v4/competitions/{league_id}"
+    headers = {'X-Auth-Token': API_KEY}
+    response = requests.get(url, headers=headers)
+    
+    # Check for successful response
+    if response.status_code == 200:
+        data = response.json()
+        return data.get('code')  # Return the league code
+    else:
+        return f"Error: {response.status_code} - {response.text}"
+    
+
 # Fetch Premier League standings
-def get_standings():
-    url = "https://api.football-data.org/v4/competitions/PL/standings"
+def get_standings(league_id):
+    code = get_league_code_by_id(league_id)
+    url = f"https://api.football-data.org/v4/competitions/{code}/standings"
     headers = {'X-Auth-Token': API_KEY}
     response = requests.get(url, headers=headers)
 
     return response.json()['standings'][0]['table']
 # Fetch Top Scorers
-def get_top_scorers():
-    url = "https://api.football-data.org/v4/competitions/PL/scorers"
+def get_top_scorers(id):
+    code = get_league_code_by_id(id)
+    url = f"https://api.football-data.org/v4/competitions/{code}/scorers"
     headers = {'X-Auth-Token': API_KEY}
     response = requests.get(url, headers=headers)
-
-    scorers_data = response.json()['scorers']
-    return [
-        {
-            'player': scorer['player'],
-            'goals': scorer['goals'],
-            'team': scorer['team'],
-            'crest': scorer['team']['crest']
-        }
-        for scorer in scorers_data[:10]  # Top 10 scorers
-    ]
+    if response.status_code == 200:
+        scorers_data = response.json()['scorers']
+        return [
+            {
+                'player': scorer['player'],
+                'goals': scorer['goals'],
+                'team': scorer['team'],
+                'crest': scorer['team']['crest']
+            }
+            for scorer in scorers_data[:10]  # Top 10 scorers
+        ]
+    else:
+        return '404'
+    
 
 
 # Fetch all teams in the league
@@ -145,9 +168,6 @@ def getFeed():
     info = json_data['result']['timeline']['instructions'][2]['entries']#[0]['content']['itemContent']['tweet_results']['result']['legacy']['retweeted_status_result']['result']['legacy']['full_text']
     print(len(json_data))
     return info
-# tweet_body = json_data['result']['timeline']['instructions'][2]['entries'][0]['content']['itemContent']['tweet_results']['result']['legacy']['full_text']
-# tweet_img = json_data['result']['timeline']['instructions'][2]['entries'][0]['content']['itemContent']['tweet_results']['result']['legacy']['extended_entities']['media'][0]['media_url_https']
-
 
 def get_available_leagues():
     url = "https://api.football-data.org/v4/competitions"
@@ -157,17 +177,56 @@ def get_available_leagues():
     # Filter only free leagues (you may need to check which leagues are free)
     return leagues
 
-# @app.route('/feed')
-# def feed():
-#     info = getFeed()
-#     return render_template('feed.html', info = info)
+
+def generate_plots(data, league):
+    plots = {}
+
+    # 1. Top Teams by Elo Rating
+    top_teams = data.groupby('team')['elo'].max().sort_values(ascending=False).head(10)
+    plt.figure(figsize=(10, 6))
+    top_teams.plot(kind='bar', color='skyblue')
+    plt.title('Top 10 Teams by Elo Rating')
+    plt.ylabel('Elo Rating')
+    plt.xlabel('Team')
+    plot_path = f'static/stats/{league}_plots/top_teams.png'
+    plt.savefig(plot_path)
+    plots['top_teams'] = plot_path
+    plt.close()
+
+    # 2. Average Elo Rating by Week
+    data['week'] = pd.to_datetime(data['week'])  # Convert weeks to datetime
+    weekly_avg_elo = data.groupby('week')['elo'].mean()
+    plt.figure(figsize=(10, 6))
+    weekly_avg_elo.plot(color='green')
+    plt.title('Average Elo Rating Over Time')
+    plt.ylabel('Average Elo')
+    plt.xlabel('Week')
+    plot_path = f'static/stats/{league}_plots/weekly_avg_elo.png'
+    plt.savefig(plot_path)
+    plots['weekly_avg_elo'] = plot_path
+    plt.close()
+
+    # 3. Rank Distribution
+    rank_counts = data['rank'].value_counts().head(10)
+    plt.figure(figsize=(10, 6))
+    rank_counts.plot(kind='bar', color='coral')
+    plt.title('Rank Distribution (Top 10 Ranks)')
+    plt.ylabel('Frequency')
+    plt.xlabel('Rank')
+    plot_path = f'static/stats/{league}_plots/rank_distribution.png'
+    plt.savefig(plot_path)
+    plots['rank_distribution'] = plot_path
+    plt.close()
+
+    return plots
+
 @app.route('/')
 def index():
     # Get today's match, standings, top scorers, and top assists
     info = getFeed()
-    match_of_the_day = get_today_match()
-    standings_data = get_standings()
-    top_scorers = get_top_scorers()
+    # match_of_the_day = get_today_match()
+    # standings_data = get_standings()
+    # top_scorers = get_top_scorers()
     # top_assists = get_top_assists()
 
     # Pass data to the template
@@ -176,9 +235,13 @@ def index():
 @app.route('/league/<int:league_id>')
 def leagues_team(league_id):
     # Get today's match, standings, top scorers, and top assists
-    print(league_id)
-    standings_data = get_standings()
-    top_scorers = get_top_scorers()
+    # print(league_id)
+    standings_data = get_standings(league_id)
+    
+    if get_top_scorers(league_id) != '404':
+        top_scorers = get_top_scorers(league_id)
+    else:
+        top_scorers = None
     # top_assists = get_top_assists()
 
     # Pass data to the template
@@ -199,6 +262,8 @@ def team_details(team_id):
     team_data = get_team_details(team_id)
     print(team_data)
     return render_template('team_details.html', team=team_data)
+
+
 @app.route('/player/<int:player_id>')
 def player_details(player_id):
     # Fetch player details using player_id
@@ -231,6 +296,56 @@ def today_matches():
     
     return render_template('today_matches.html', matches=matches)
 
+@app.route('/statistics')
+def stats1():
+    # Generate plots and get their paths
+    data = pd.read_csv('static/stats/ENG_Premier_League_elo.csv')
+
+    plots = generate_plots(data, 'PL')
+
+    #print(plots)
+    
+    # Compute additional statistics
+    top_team = data.loc[data['elo'].idxmax(), 'team']
+    top_elo = data['elo'].max()
+    avg_elo = data['elo'].mean()
+
+    stats = {
+        "top_team": top_team,
+        "top_elo": round(top_elo, 2),
+        "avg_elo": round(avg_elo, 2)
+    }
+    
+    return render_template('statistics.html', plots=plots, stats=stats, league='PL')
+
+@app.route('/statistics/<string:league>')
+def stats2(league):
+    # Generate plots and get their paths
+    if league == 'PL':
+        data = pd.read_csv('static/stats/ENG_Premier_League_elo.csv')
+    elif league ==  'FR':
+        data = pd.read_csv('static/stats/FRA_Ligue_1_elo.csv')
+    elif league ==  'IT':
+        data = pd.read_csv('static/stats/ITA_Serie_A_elo.csv')
+    elif league ==  'GR':
+        data = pd.read_csv('static/stats/GER_Bundesliga_elo.csv')
+
+    plots = generate_plots(data, league)
+
+    #print(plots)
+    
+    # Compute additional statistics
+    top_team = data.loc[data['elo'].idxmax(), 'team']
+    top_elo = data['elo'].max()
+    avg_elo = data['elo'].mean()
+
+    stats = {
+        "top_team": top_team,
+        "top_elo": round(top_elo, 2),
+        "avg_elo": round(avg_elo, 2)
+    }
+    
+    return render_template('statistics.html', plots=plots, stats=stats, league=league)
 
 if __name__ == '__main__':
     app.run(debug=True)
