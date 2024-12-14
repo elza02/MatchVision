@@ -169,9 +169,9 @@ const HeadToHead = ({ matches }) => (
       {matches.map((match) => (
         <Tr key={match.id}>
           <Td>{new Date(match.match_date).toLocaleDateString()}</Td>
-          <Td>{match.home_team.name}</Td>
+          <Td>{match.home_team}</Td>
           <Td>{match.home_team_score} - {match.away_team_score}</Td>
-          <Td>{match.away_team.name}</Td>
+          <Td>{match.away_team}</Td>
         </Tr>
       ))}
     </Tbody>
@@ -242,7 +242,7 @@ const MatchDetail = ({ match }) => {
         {/* Match Header */}
         <Box textAlign="center">
           <Heading size="md" mb={2}>
-            {match.home_team?.name} vs {match.away_team?.name}
+            {match.home_team} vs {match.away_team}
           </Heading>
           <Text color="gray.500">
             {match.match_date ? new Date(match.match_date).toLocaleDateString() : 'Date not available'}

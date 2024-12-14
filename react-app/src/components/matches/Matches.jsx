@@ -67,11 +67,15 @@ function Matches() {
 
       // Fetch competitions if needed
       if (!competitions || competitions.length === 0) {
-        const competitionsResponse = await api.get('/competitions/');
-        const competitionsData = competitionsResponse.data;
-        setCompetitions(competitionsData);
-        if (!selectedCompetition && competitionsData.length > 0) {
-          setSelectedCompetition(competitionsData[0].id.toString());
+        try {
+          const competitionsResponse = await axios.get(`http://localhost:8001/api/competitions`);
+          const competitionsData = competitionsResponse.data;
+          setCompetitions(competitionsData);
+          if (!selectedCompetition && competitionsData.length > 0) {
+            setSelectedCompetition(competitionsData[0].id.toString());
+          }
+        } catch (error) {
+          console.error('Error fetching competitions:', error);
         }
       }
 
@@ -217,9 +221,9 @@ function Matches() {
                       {match.status || 'Unknown'}
                     </Badge>
                     <Stack spacing={2}>
-                      <Text fontWeight="bold">{match.home_team?.name || 'Unknown Team'}</Text>
+                      <Text fontWeight="bold">{match.home_team || 'Unknown Team'}</Text>
                       <Text fontSize="sm" color="gray.500">vs</Text>
-                      <Text fontWeight="bold">{match.away_team?.name || 'Unknown Team'}</Text>
+                      <Text fontWeight="bold">{match.away_team || 'Unknown Team'}</Text>
                     </Stack>
                     <Text color="gray.500">
                       {match.match_date ? new Date(match.match_date).toLocaleDateString() : 'Date not available'}
@@ -244,7 +248,7 @@ function Matches() {
           <ModalOverlay />
           <ModalContent maxW="1000px">
             <ModalHeader>
-              {selectedMatch.home_team?.name} vs {selectedMatch.away_team?.name}
+              {selectedMatch.home_team} vs {selectedMatch.away_team}
             </ModalHeader>
             <ModalCloseButton />
             <ModalBody pb={6}>
