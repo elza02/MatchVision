@@ -7,7 +7,7 @@ import mysql.connector
 import logging
 
 # Kafka and MySQL Configuration
-KAFKA_BROKER = "kafka:29092"
+KAFKA_BROKER = "kafka:29092"  
 DB_CONFIG = {
     'host': 'mysql-football-2',
     'user': 'houcine',
@@ -36,7 +36,7 @@ def ensure_kafka_topics(broker, topics):
     topics_to_create = []
 
     for topic in topics.values():
-        if topic not in existing_topics:
+        if topic not in existing_topics:  
             topics_to_create.append(NewTopic(name=topic, num_partitions=1, replication_factor=1))
 
     if topics_to_create:
@@ -51,7 +51,7 @@ def ensure_kafka_topics(broker, topics):
         logging.info("All topics already exist.")
 
     admin_client.close()
-
+  
 # Ensure Kafka topics exist
 ensure_kafka_topics(KAFKA_BROKER, TOPICS)
 

@@ -204,8 +204,6 @@
 // }
 
 // export default Teams;
-
-
 import { useState, useEffect } from 'react';
 import {
   Box,
@@ -236,9 +234,14 @@ import {
   Spinner,
   Alert,
   AlertIcon,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel
 } from '@chakra-ui/react';
 import { FiSearch } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../services/api';
 
 function Teams() {
   const [teams, setTeams] = useState([]);
@@ -255,8 +258,8 @@ function Teams() {
 
   const fetchTeams = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/teams/`);
-      setTeams(response.data || []); // Adjust based on the API response structure
+      const response = await api.get('/teams/');
+      setTeams(response.data?.results || []);
       setError(null);
     } catch (error) {
       console.error('Error fetching teams:', error);
@@ -268,8 +271,8 @@ function Teams() {
 
   const fetchTeamStats = async (teamId) => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/analytics/team/${teamId}/`);
-      setTeamStats(response.data || null); // Adjust based on the API response structure
+      const response = await api.get(`/teams/${teamId}/statistics/`);
+      setTeamStats(response.data || null);
       setError(null);
     } catch (error) {
       console.error('Error fetching team statistics:', error);
@@ -352,7 +355,7 @@ function Teams() {
         </SimpleGrid>
       )}
 
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <Modal isOpen={isOpen} onClose={onClose} size="2xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>{selectedTeam?.name} Statistics</ModalHeader>
@@ -368,40 +371,84 @@ function Teams() {
                 <Spinner />
               </Box>
             ) : (
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th>Statistic</Th>
-                    <Th>Value</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  <Tr>
-                    <Td>Matches Played</Td>
-                    <Td>{teamStats.matches_played || 0}</Td>
-                  </Tr>
-                  <Tr>
-                    <Td>Wins</Td>
-                    <Td>{teamStats.wins || 0}</Td>
-                  </Tr>
-                  <Tr>
-                    <Td>Draws</Td>
-                    <Td>{teamStats.draws || 0}</Td>
-                  </Tr>
-                  <Tr>
-                    <Td>Losses</Td>
-                    <Td>{teamStats.losses || 0}</Td>
-                  </Tr>
-                  <Tr>
-                    <Td>Goals Scored</Td>
-                    <Td>{teamStats.goals_scored || 0}</Td>
-                  </Tr>
-                  <Tr>
-                    <Td>Goals Conceded</Td>
-                    <Td>{teamStats.goals_conceded || 0}</Td>
-                  </Tr>
-                </Tbody>
-              </Table>
+              <Tabs>
+                <TabList>
+                  <Tab>Overall Stats</Tab>
+                  <Tab>Top Scorers</Tab>
+                  <Tab>Squad Details</Tab>
+                </TabList>
+                <TabPanels>
+                  {/* Overall Statistics */}
+                  <TabPanel>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Statistic</Th>
+                          <Th>Value</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {Object.entries(teamStats.overall || {}).map(([key, value]) => (
+                          <Tr key={key}>
+                            <Td>{key.replace(/_/g, ' ').toUpperCase()}</Td>
+                            <Td>{value}</Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </TabPanel>
+
+                  {/* Top Scorers */}
+                  <TabPanel>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Name</Th>
+                          <Th>Goals</Th>
+                          <Th>Assists</Th>
+                          <Th>Avg Minutes</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {teamStats.top_scorers?.map((scorer, index) => (
+                          <Tr key={index}>
+                            <Td>{scorer.name}</Td>
+                            <Td>{scorer.total_goals}</Td>
+                            <Td>{scorer.total_assists}</Td>
+                            <Td>{scorer.avg_minutes?.toFixed(2)}</Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </TabPanel>
+
+                  {/* Squad Details */}
+                  <TabPanel>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Squad Metric</Th>
+                          <Th>Value</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        <Tr>
+                          <Td>Total Players</Td>
+                          <Td>{teamStats.squad.size}</Td>
+                        </Tr>
+                        <Tr>
+                          <Td>Total Market Value</Td>
+                          <Td>${teamStats.squad.total_market_value?.toLocaleString()}</Td>
+                        </Tr>
+                        <Tr>
+                          <Td>Average Player Value</Td>
+                          <Td>${teamStats.squad.average_player_value?.toLocaleString()}</Td>
+                        </Tr>
+                      </Tbody>
+                    </Table>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
             )}
           </ModalBody>
         </ModalContent>

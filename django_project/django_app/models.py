@@ -9,7 +9,7 @@ class Team(models.Model):
     founded = models.IntegerField(null=True)
     club_colors = models.CharField(max_length=100, null=True)
     crest = models.URLField(max_length=200, null=True)
-
+   
     class Meta:
         db_table = 'teams'
 
@@ -114,7 +114,7 @@ class BettingOdds(models.Model):
     draw_odds = models.FloatField()
     away_win_odds = models.FloatField()
     timestamp = models.DateTimeField()  # Changed to store API timestamp
-    
+       
     class Meta:
         db_table = 'betting_odds'
         indexes = [
