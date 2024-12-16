@@ -42,12 +42,14 @@ def fetch_competitions():
 
         producer.flush()
         print(f"Produced {len(competitions)} competitions to Kafka.")
-        return [c["code"] for c in competitions]
+        competition_codes = [c["code"] for c in competitions]
+        competition_names = [c["name"] for c in competitions]
+        return competition_codes, competition_names
     except Exception as e:
         print(f"Error fetching competitions: {e}")
         return []
 
-def fetch_teams(competition_code):
+def fetch_teams(competition_code, competition_name):
     try:
         response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/teams", headers=HEADERS)
         response.raise_for_status()
@@ -57,16 +59,17 @@ def fetch_teams(competition_code):
             data = {
                 "id": team["id"],
                 "name": team["name"],
+                "competition_name": competition_name,
                 "venue": team.get("venue", "Unknown Venue")
             }
             producer.send(TOPICS["teams"], value=data)
             print(f"Produced team: {data}")
 
         producer.flush()
-        print(f"Produced {len(teams)} teams for competition {competition_code}.")
+        print(f"Produced {len(teams)} teams for competition {competition_name}.")
         return {t["id"]: t for t in teams}
     except Exception as e:
-        print(f"Error fetching teams for competition {competition_code}: {e}")
+        print(f"Error fetching teams for competition {competition_name}: {e}")
         return {}
 
 def fetch_matches(competition_code, season, team_map):
@@ -131,23 +134,23 @@ def fetch_standigs():
 
 # Main process
 def main():
-    competition_codes = fetch_competitions()
+    competition_codes, competition_names = fetch_competitions()
     seasons = [2022, 2023, 2024]
 
-    for competition_code in competition_codes:
-        print(f"Fetching teams for competition {competition_code}...")
-        team_map = fetch_teams(competition_code)
+    for competition_code, competition_name in zip(competition_codes, competition_names):
+        print(f"Fetching teams for competition {competition_name}...")
+        team_map = fetch_teams(competition_code, competition_name)
         time.sleep(6)
 
         for season in seasons:
-            print(f"Fetching matches for competition {competition_code}, season {season}...")
+            print(f"Fetching matches for competition {competition_name}, season {season}...")
             try:
                 fetch_matches(competition_code, season, team_map)
             except Exception as e:
-                print(f"Skipping matches for competition {competition_code}, season {season} due to error: {e}")
+                print(f"Skipping matches for competition {competition_name}, season {season} due to error: {e}")
             time.sleep(6)
 
-            print(f"Fetching top scorers for competition {competition_code}, season {season}...")
+            print(f"Fetching top scorers for competition {competition_name}, season {season}...")
             try:
                 fetch_top_scorers(competition_code, season)
             except Exception as e:

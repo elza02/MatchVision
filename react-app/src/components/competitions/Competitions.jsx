@@ -37,7 +37,7 @@ const Competitions = () => {
     <Container maxW="container.xl" py={5}>
       <VStack spacing={5} align="stretch">
         <Heading size="lg" mb={4}>
-          Competitions
+          Competitions ({competitions.length})
         </Heading>
         <Box
           bg={bgColor}
@@ -51,9 +51,7 @@ const Competitions = () => {
             <Thead>
               <Tr>
                 <Th>Name</Th>
-                <Th>Country</Th>
-                <Th>Season</Th>
-                <Th>Teams</Th>
+                <Th>Area</Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -62,9 +60,7 @@ const Competitions = () => {
                   <Td>
                     <Text fontWeight="medium">{competition.name}</Text>
                   </Td>
-                  <Td>{competition.country}</Td>
-                  <Td>{competition.current_season}</Td>
-                  <Td>{competition.team_count}</Td>
+                  <Td>{competition.area}</Td>
                 </Tr>
               ))}
             </Tbody>

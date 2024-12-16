@@ -92,19 +92,19 @@ def save_to_mysql(df, table_name, epoch_id):
                     # Update existing team without affecting relationships
                     query = """
                     UPDATE teams 
-                    SET name = %s, venue = %s
+                    SET name = %s, venue = %s, competition = %s
                     WHERE id = %s
                     """
                     venue = row.venue if row.venue else "Unknown Venue"  # Provide default value
-                    cursor.execute(query, (row.name, venue, row.id))
+                    cursor.execute(query, (row.name, venue, row.id, row.competition))
                 else:
                     # Insert new team
                     query = """
-                    INSERT INTO teams (id, name, venue)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO teams (id, name, venue, competition)
+                    VALUES (%s, %s, %s, %s)
                     """
                     venue = row.venue if row.venue else "Unknown Venue"  # Provide default value
-                    cursor.execute(query, (row.id, row.name, venue))
+                    cursor.execute(query, (row.id, row.name, venue, row.competition))
                 
                 connection.commit()
             return
@@ -278,6 +278,7 @@ schemas = {
     "teams": StructType([
         StructField("id", IntegerType(), False),
         StructField("name", StringType(), False),
+        StructField("competition", StringType(), False),
         StructField("venue", StringType(), True)
     ]),
     "competitions": StructType([

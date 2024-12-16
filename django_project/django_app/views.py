@@ -27,15 +27,9 @@ from .serializers import (
     PlayerStatsSerializer, MatchPredictionSerializer,
     TeamDetailSerializer, MatchDetailSerializer, PlayerStatsDetailSerializer,
     PlayerSerializer,
-    # TwitterFeedSerializer,
     TeamFormationSerializer,
     BettingOddsSerializer, TopScorerSerializer
 )
-# from .services import TwitterService
-# from .serializers.twitter_serializer import TwitterFeedSerializer
-
-# Twitter Integration
-# from .twitter_config import get_twitter_client, get_twitter_api, safe_twitter_request
 
 # Logging setup
 import logging
@@ -433,11 +427,13 @@ class CompetitionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+
 class MatchViewSet(viewsets.ModelViewSet):
     queryset = Match.objects.select_related('home_team', 'away_team', 'competition').all()
     serializer_class = MatchSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['competition', 'home_team', 'away_team', 'status', 'season']
+    filterset_fields = ['competition', 'status', 'season']
     search_fields = ['home_team__name', 'away_team__name']
     pagination_class = PageNumberPagination
 

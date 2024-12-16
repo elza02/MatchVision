@@ -86,6 +86,7 @@ function Matches() {
       
       const matchesResponse = await api.get(matchesUrl);
       const matchesData = matchesResponse.data;
+      console.log(matchesData)
       
       // Validate response data
       if (!matchesData || typeof matchesData !== 'object') {
@@ -211,7 +212,7 @@ function Matches() {
                 onClick={() => handleMatchClick(match)}
                 _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
                 transition="all 0.2s"
-              >
+              > 
                 <CardBody>
                   <Stack spacing={4}>
                     <Badge 

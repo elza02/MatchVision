@@ -4,6 +4,7 @@ from django.db import models
 class Team(models.Model):
     id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100)
+    competition_name = models.CharField(max_length=100)
     venue = models.CharField(max_length=100, null=True)
     website = models.URLField(max_length=200, null=True)
     founded = models.IntegerField(null=True)

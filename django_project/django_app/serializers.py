@@ -14,26 +14,49 @@ class CompetitionSerializer(serializers.ModelSerializer):
         model = Competition
         fields = '__all__'
 
+
 class MatchSerializer(serializers.ModelSerializer):
     home_team = TeamSerializer(read_only=True)
     away_team = TeamSerializer(read_only=True)
-    competition = CompetitionSerializer(read_only=True)
+    
+    # Optional: Keep the name fields if you want them separately
+    home_team_name = serializers.CharField(source='home_team.name', read_only=True)
+    away_team_name = serializers.CharField(source='away_team.name', read_only=True)
+    
+    # Write-only fields for creating/updating matches
     home_team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), source='home_team', write_only=True
+        queryset=Team.objects.all(), 
+        source='home_team', 
+        write_only=True
     )
     away_team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), source='away_team', write_only=True
+        queryset=Team.objects.all(), 
+        source='away_team', 
+        write_only=True
     )
     competition_id = serializers.PrimaryKeyRelatedField(
-        queryset=Competition.objects.all(), source='competition', write_only=True
+        queryset=Competition.objects.all(), 
+        source='competition', 
+        write_only=True
     )
 
     class Meta:
         model = Match
-        fields = ['id', 'competition', 'competition_id', 'season', 
-                 'home_team', 'home_team_id', 'away_team', 'away_team_id',
-                 'match_date', 'status', 'home_team_score', 'away_team_score', 
-                 'referee']
+        fields = '__all__'  # This will now include all match fields AND full team details
+        depth = 1  # Optional: can help with nested serialization
+
+    def to_representation(self, instance):
+        print("\n--- Match Serialization Debug ---")
+        print(f"Match ID: {instance.id}")
+        print(f"Home Team: {instance.home_team}")
+        print(f"Away Team: {instance.away_team}")
+        
+        representation = super().to_representation(instance)
+        print("\nFull Representation:")
+        print(representation)
+        return representation
+
+
 
 class PlayerStatsSerializer(serializers.ModelSerializer):
     class Meta:
