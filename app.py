@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import requests
 import json
 from datetime import datetime
@@ -15,7 +15,7 @@ with open('key.json') as config_file:
     config = json.load(config_file)
 API_KEY = config['api_key']
 RAPID_API_KEY = config['x-rapidapi-key']
-
+API_BASE_URL = 'https://api.football-data.org/v4'
 # Fetch today's match
 def get_today_match():
     # Get today's date in the format that the API uses (yyyy-mm-dd)
@@ -346,6 +346,114 @@ def stats2(league):
     }
     
     return render_template('statistics.html', plots=plots, stats=stats, league=league)
+
+def fetch_team_statistics(team_id):
+    """Fetch statistics for a team."""
+    headers = {'X-Auth-Token': API_KEY}
+    url = f'{API_BASE_URL}/teams/{team_id}/matches'
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()['matches']
+    return None
+
+def calculate_recent_form(matches, team_id):
+    """Calculate recent form (last 5 matches) for a team."""
+    recent_matches = [match for match in matches if match['status'] == 'FINISHED'][:10]
+    wins, draws, losses, goals_scored, goals_conceded = 0, 0, 0, 0, 0
+
+    for match in recent_matches:
+        is_home_team = match['homeTeam']['id'] == team_id
+        is_away_team = match['awayTeam']['id'] == team_id
+
+        if is_home_team or is_away_team:
+            # Determine goals scored and conceded
+            if is_home_team:
+                goals_scored += match['score']['fullTime']['home']
+                goals_conceded += match['score']['fullTime']['away']
+                if match['score']['winner'] == 'HOME_TEAM':
+                    wins += 1
+                elif match['score']['winner'] == 'AWAY_TEAM':
+                    losses += 1
+                else:
+                    draws += 1
+            elif is_away_team:
+                goals_scored += match['score']['fullTime']['away']
+                goals_conceded += match['score']['fullTime']['home']
+                if match['score']['winner'] == 'AWAY_TEAM':
+                    wins += 1
+                elif match['score']['winner'] == 'HOME_TEAM':
+                    losses += 1
+                else:
+                    draws += 1
+
+    return {
+        'wins': wins,
+        'draws': draws,
+        'losses': losses,
+        'goals_scored': goals_scored,
+        'goals_conceded': goals_conceded,
+        'matches': len(recent_matches),
+    }
+
+
+@app.route('/match-prediction')
+def match_statistics():
+    """Show the statistics and prediction for a match between two teams."""
+    team1 = request.args.get('team1')
+    team2 = request.args.get('team2')
+
+    # Fetch team statistics
+    home_team_matches = fetch_team_statistics(int(team1))
+    away_team_matches = fetch_team_statistics(int(team2))
+
+    # Fetch team names
+    home_team_name = home_team_matches[0]['homeTeam']['name']
+    away_team_name = away_team_matches[0]['awayTeam']['name']
+
+    # Fetch team logo
+    home_team_logo = home_team_matches[0]['homeTeam']['crest']
+    away_team_logo = away_team_matches[0]['awayTeam']['crest']
+
+    # Calculate recent form
+    home_form = calculate_recent_form(home_team_matches, int(team1))
+    away_form = calculate_recent_form(away_team_matches, int(team2))
+
+    # Calculate win probabilities (basic model based on recent wins and goals scored)
+    home_score = (
+        home_form['wins'] * 3 + home_form['goals_scored'] - home_form['goals_conceded']
+    )
+    away_score = (
+        away_form['wins'] * 3 + away_form['goals_scored'] - away_form['goals_conceded']
+    )
+    total_score = home_score + away_score
+
+    home_win_percentage = (
+        (home_score / total_score) * 100 if total_score > 0 else 50
+    )
+    away_win_percentage = (
+        (away_score / total_score) * 100 if total_score > 0 else 50
+    )
+    prediction = ''
+    if home_win_percentage > away_win_percentage:
+        prediction = f"{home_team_name} will win"
+    elif home_win_percentage < away_win_percentage:
+        prediction = f"{away_team_name} will win"
+    else:
+        prediction = "It's likely a draw"
+    # Render the statistics and prediction
+    return render_template(
+        'match_prediction.html',
+        home_team_logo = home_team_logo,
+        away_team_logo = away_team_logo,
+        home_form=home_form,
+        away_form=away_form,
+        home_team_name=home_team_name,
+        away_team_name=away_team_name,
+        prediction = prediction,
+        home_win_percentage=round(home_win_percentage, 2),
+        away_win_percentage=round(away_win_percentage, 2),
+    )
+
 
 if __name__ == '__main__':
     app.run(debug=True)
