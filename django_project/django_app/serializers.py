@@ -7,7 +7,11 @@ from .models import (
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = '__all__'
+        fields = [
+            'id', 'name', 'competition_name', 'venue', 
+            'website', 'founded', 'club_colors', 'crest'
+        ]
+
 
 class CompetitionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -15,46 +19,25 @@ class CompetitionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class TeamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ['id', 'name']  # Add other team fields if needed
+
 class MatchSerializer(serializers.ModelSerializer):
-    home_team = TeamSerializer(read_only=True)
-    away_team = TeamSerializer(read_only=True)
-    
-    # Optional: Keep the name fields if you want them separately
-    home_team_name = serializers.CharField(source='home_team.name', read_only=True)
-    away_team_name = serializers.CharField(source='away_team.name', read_only=True)
-    
-    # Write-only fields for creating/updating matches
-    home_team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), 
-        source='home_team', 
-        write_only=True
-    )
-    away_team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), 
-        source='away_team', 
-        write_only=True
-    )
-    competition_id = serializers.PrimaryKeyRelatedField(
-        queryset=Competition.objects.all(), 
-        source='competition', 
-        write_only=True
-    )
+    home_team_details = TeamSerializer(source='home_team', read_only=True)
+    away_team_details = TeamSerializer(source='away_team', read_only=True)
 
     class Meta:
         model = Match
-        fields = '__all__'  # This will now include all match fields AND full team details
-        depth = 1  # Optional: can help with nested serialization
+        fields = [
+            'id', 'season', 'match_date', 'status', 'stage',
+            'home_team_score', 'away_team_score', 'referee', 'competition',
+            'home_team_details', 'away_team_details'  # Include team details
+        ]
 
-    def to_representation(self, instance):
-        print("\n--- Match Serialization Debug ---")
-        print(f"Match ID: {instance.id}")
-        print(f"Home Team: {instance.home_team}")
-        print(f"Away Team: {instance.away_team}")
-        
-        representation = super().to_representation(instance)
-        print("\nFull Representation:")
-        print(representation)
-        return representation
+
+
 
 
 
