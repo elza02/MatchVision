@@ -69,6 +69,17 @@ def check_foreign_key_exists(cursor, table, field, value):
     cursor.execute(f"SELECT id FROM {table} WHERE id = %s", (value,))
     return cursor.fetchone() is not None
 
+import mysql.connector
+import logging
+
+# Assuming DB_CONFIG is defined elsewhere in your code
+# from your_config import DB_CONFIG
+
+def check_foreign_key_exists(cursor, table, field, value):
+    """Helper function to check if a foreign key exists"""
+    cursor.execute(f"SELECT id FROM {table} WHERE id = %s", (value,))
+    return cursor.fetchone() is not None
+
 def save_to_mysql(df, table_name, epoch_id):
     """
     Save the given DataFrame to MySQL with enhanced error handling and logging
@@ -78,16 +89,16 @@ def save_to_mysql(df, table_name, epoch_id):
     try:
         connection = mysql.connector.connect(**DB_CONFIG)
         cursor = connection.cursor()
-        
+
         records = df.collect()
-        
+
         if table_name == "teams":
             # For teams, we need to check if they're referenced before updating
             for row in records:
                 # Check if team exists
                 cursor.execute("SELECT id FROM teams WHERE id = %s", (row.id,))
                 team_exists = cursor.fetchone()
-                
+
                 if team_exists:
                     # Update existing team without affecting relationships
                     query = """
@@ -103,51 +114,54 @@ def save_to_mysql(df, table_name, epoch_id):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     cursor.execute("SELECT id FROM competitions WHERE name = %s", (row.competition,))
+                    competition = cursor.fetchone()
+                    if competition:
+                        cursor.execute(query, (row.id, row.name, row.competition, row.crest, row.website, row.founded, row.club_colors, row.venue))
+                    else:
+                        logging.warning(f"Competition {row.competition} not found for team {row.name}. Skipping insertion.")
                 connection.commit()
             return
-        
 
-        
         # Check foreign key dependencies for other tables
         if table_name in ["matches", "top_scorers"]:
             valid_records = []
             for row in records:
                 is_valid = True
-                
+
                 # Check team dependencies
                 team_ids = []
                 if table_name == "matches":
                     team_ids = [row.home_team_id, row.away_team_id]
                 elif table_name == "top_scorers":
                     team_ids = [row.team_id]
-                
+
                 for team_id in team_ids:
                     if not check_foreign_key_exists(cursor, "teams", "id", team_id):
                         logging.warning(f"Team with ID {team_id} not found. Skipping record.")
                         is_valid = False
                         break
-                
+
                 # Check competition dependency
                 if hasattr(row, 'competition_id') and not check_foreign_key_exists(cursor, "competitions", "id", row.competition_id):
                     logging.warning(f"Competition with ID {row.competition_id} not found. Skipping record.")
                     is_valid = False
-                
+
                 if is_valid:
                     valid_records.append(row)
-            
+
             records = valid_records
-        
+
         if not records:
             logging.warning(f"No valid records to insert for {table_name}")
             return
 
+        # Prepare the query and data based on table_name
         if table_name == "competitions":
-            # For competitions, we need to check if they're referenced before updating
             for row in records:
                 # Check if competition exists
                 cursor.execute("SELECT id FROM competitions WHERE id = %s", (row.id,))
                 competition_exists = cursor.fetchone()
-                
+
                 if competition_exists:
                     # Update existing competition without affecting relationships
                     query = """
@@ -155,21 +169,16 @@ def save_to_mysql(df, table_name, epoch_id):
                     SET name = %s, area = %s, code = %s, type = %s, emblem = %s
                     WHERE id = %s
                     """
-                    cursor.execute(query, (row.name, row.area, row.id))
+                    cursor.execute(query, (row.name, row.area, row.code, row.type, row.emblem, row.id))
                 else:
                     # Insert new competition
                     query = """
                     INSERT INTO competitions (id, name, area, code, type, emblem)
                     VALUES (%s, %s, %s, %s, %s, %s)
                     """
-                    cursor.execute(query, (row.id, row.name, row.area))
+                    cursor.execute(query, (row.id, row.name, row.area, row.code, row.type, row.emblem))
                 connection.commit()
-                
-            # query = """
-            # Replace INTO competitions (id, name, area, code, type, emblem)
-            # VALUES (%s, %s, %s, %s, %s, %s)
-            # """
-            # data = [(row.id, row.name, row.area, row.code, row.type, row.emblem) for row in records]
+
         elif table_name == "matches":
             query = """
             REPLACE INTO matches (id, competition_id, season, home_team_id, away_team_id,
@@ -180,20 +189,21 @@ def save_to_mysql(df, table_name, epoch_id):
             for row in records:
                 try:
                     data.append((
-                        row.id, 
-                        row.competition_id, 
-                        row.season, 
+                        row.id,
+                        row.competition_id,
+                        row.season,
                         row.home_team_id,
-                        row.away_team_id, 
-                        row.match_date, 
+                        row.away_team_id,
+                        row.match_date,
                         row.status,
-                        int(row.home_team_score or 0), 
+                        int(row.home_team_score or 0),
                         int(row.away_team_score or 0),
                         row.referee
                     ))
                 except Exception as e:
                     logging.error(f"Error processing match record: {e}")
                     continue
+
         elif table_name == "top_scorers":
             query = """
             REPLACE INTO top_scorers (player_id, player_name, team_id, competition_id, season,
@@ -216,6 +226,7 @@ def save_to_mysql(df, table_name, epoch_id):
                 except Exception as e:
                     logging.error(f"Error processing top scorer record: {e}")
                     continue
+
         elif table_name == "player_stats":
             query = """
             REPLACE INTO player_stats 
@@ -228,6 +239,7 @@ def save_to_mysql(df, table_name, epoch_id):
                  row.team_id, row.match_id) 
                 for row in records
             ]
+
         elif table_name == "match_predictions":
             query = """
             REPLACE INTO match_predictions 
@@ -242,6 +254,7 @@ def save_to_mysql(df, table_name, epoch_id):
                  row.predicted_score) 
                 for row in records
             ]
+
         elif table_name == "team_formations":
             query = """
             REPLACE INTO team_formations 
@@ -252,6 +265,7 @@ def save_to_mysql(df, table_name, epoch_id):
                 (row.match_id, row.team_id, row.formation, row.players) 
                 for row in records
             ]
+
         elif table_name == "betting_odds":
             query = """
             REPLACE INTO betting_odds 
@@ -266,7 +280,7 @@ def save_to_mysql(df, table_name, epoch_id):
                  row.timestamp) 
                 for row in records
             ]
-        
+
         if data:
             try:
                 cursor.executemany(query, data)
@@ -295,6 +309,7 @@ def save_to_mysql(df, table_name, epoch_id):
         if connection:
             connection.close()
 
+
 # Define Kafka schema for topics
 schemas = {
     "teams": StructType([
@@ -310,7 +325,10 @@ schemas = {
     "competitions": StructType([
         StructField("id", IntegerType(), False),
         StructField("name", StringType(), False),
-        StructField("area", StringType(), True)
+        StructField("area", StringType(), True),
+        StructField("code", StringType(), True),
+        StructField("type", StringType(), True),
+        StructField("emblem", StringType(), True)
     ]),
     "matches": StructType([
         StructField("id", IntegerType(), False),
