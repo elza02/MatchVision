@@ -23,6 +23,7 @@ class Competition(models.Model):
     area = models.CharField(max_length=100, null=True, default='')
     code = models.CharField(max_length=20, null=True, default='')
     type = models.CharField(max_length=20, null=True, default='LEAGUE')
+    emblem = models.CharField(max_length=200, null=True, default='')
 
     class Meta:
         db_table = 'competitions'

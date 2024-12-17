@@ -60,6 +60,10 @@ def fetch_teams(competition_code, competition_name):
                 "id": team["id"],
                 "name": team["name"],
                 "competition_name": competition_name,
+                "crest": team["crest"],
+                "website": team.get("website", "Unknown Website"),
+                "founded": team.get("founded", "Unknown Founded"),
+                "club_colors": team.get("clubColors", "Unknown Colors"),
                 "venue": team.get("venue", "Unknown Venue")
             }
             producer.send(TOPICS["teams"], value=data)
@@ -131,6 +135,23 @@ def fetch_top_scorers(competition_code, season):
 
 def fetch_standigs():
     pass
+
+# def fatch_players(competition_code, season):
+#     try:
+#         response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/players?season={season}", headers=HEADERS)
+#         response.raise_for_status()
+#         players = response.json().get("players", [])
+#         competition_id = response.json().get("competition").get("id")
+
+#         for player in players:
+#             data = {
+#                 "id": player["id"],
+#                 "name": player["name"],
+#                 "position": player["position"],
+#                 "date_of_birth": player["dateOfBirth"],
+#                 "nationality": player["nationality"],
+                
+    
 
 # Main process
 def main():

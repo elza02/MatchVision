@@ -91,23 +91,22 @@ def save_to_mysql(df, table_name, epoch_id):
                 if team_exists:
                     # Update existing team without affecting relationships
                     query = """
-                    UPDATE teams 
-                    SET name = %s, venue = %s, competition = %s
+                    UPDATE teams
+                    SET name = %s, crest = %s, website = %s, founded = %s, club_colors = %s, venue = %s
                     WHERE id = %s
                     """
-                    venue = row.venue if row.venue else "Unknown Venue"  # Provide default value
-                    cursor.execute(query, (row.name, venue, row.id, row.competition))
+                    cursor.execute(query, (row.name, row.crest, row.website, row.founded, row.club_colors, row.venue, row.id))
                 else:
                     # Insert new team
                     query = """
-                    INSERT INTO teams (id, name, venue, competition)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO teams (id, name, competition, crest, website, founded, club_colors, venue)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    venue = row.venue if row.venue else "Unknown Venue"  # Provide default value
-                    cursor.execute(query, (row.id, row.name, venue, row.competition))
-                
+                    cursor.execute("SELECT id FROM competitions WHERE name = %s", (row.competition,))
                 connection.commit()
             return
+        
+
         
         # Check foreign key dependencies for other tables
         if table_name in ["matches", "top_scorers"]:
@@ -143,11 +142,34 @@ def save_to_mysql(df, table_name, epoch_id):
             return
 
         if table_name == "competitions":
-            query = """
-            REPLACE INTO competitions (id, name, area)
-            VALUES (%s, %s, %s)
-            """
-            data = [(row.id, row.name, row.area) for row in records]
+            # For competitions, we need to check if they're referenced before updating
+            for row in records:
+                # Check if competition exists
+                cursor.execute("SELECT id FROM competitions WHERE id = %s", (row.id,))
+                competition_exists = cursor.fetchone()
+                
+                if competition_exists:
+                    # Update existing competition without affecting relationships
+                    query = """
+                    UPDATE competitions
+                    SET name = %s, area = %s, code = %s, type = %s, emblem = %s
+                    WHERE id = %s
+                    """
+                    cursor.execute(query, (row.name, row.area, row.id))
+                else:
+                    # Insert new competition
+                    query = """
+                    INSERT INTO competitions (id, name, area, code, type, emblem)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(query, (row.id, row.name, row.area))
+                connection.commit()
+                
+            # query = """
+            # Replace INTO competitions (id, name, area, code, type, emblem)
+            # VALUES (%s, %s, %s, %s, %s, %s)
+            # """
+            # data = [(row.id, row.name, row.area, row.code, row.type, row.emblem) for row in records]
         elif table_name == "matches":
             query = """
             REPLACE INTO matches (id, competition_id, season, home_team_id, away_team_id,
@@ -279,6 +301,10 @@ schemas = {
         StructField("id", IntegerType(), False),
         StructField("name", StringType(), False),
         StructField("competition", StringType(), False),
+        StructField("crest", StringType(), True),
+        StructField("website", StringType(), True),
+        StructField("founded", StringType(), True),
+        StructField("club_colors", StringType(), True),
         StructField("venue", StringType(), True)
     ]),
     "competitions": StructType([
@@ -399,9 +425,9 @@ def process_kafka_topic(topic_name, table_name):
         .start()
 
     # Debugging: Show parsed data in the console
-    parsed_df.writeStream \
-        .format("console") \
-        .start()
+    # parsed_df.writeStream \
+    #     .format("console") \
+    #     .start()
 
 
 def validate_player_stats(df):
