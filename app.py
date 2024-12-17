@@ -293,6 +293,7 @@ def leagues():
 def today_matches():
     # Assuming you have a function `get_today_match()` which fetches today's matches
     matches = get_today_match()
+    # a cree un objet vide avec les mm attribut.
     
     return render_template('today_matches.html', matches=matches)
 

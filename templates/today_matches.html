@@ -42,29 +42,32 @@
 <div class="container">
     <h1 class="text-center my-4">Today's Matches</h1>
     
-    <!-- Display matches in a styled list -->
-    {% for match in matches %}
-    <div class="match-card">
-        <div class="match-team">
-            <img src="{{ match['homeTeam']['crest'] }}" alt="{{ match['homeTeam']['name'] }} logo" class="team-logo">
-            <h5>{{ match['homeTeam']['name'] }}</h5>
+    <!-- Check if matches is None or empty -->
+    {% if matches is none or matches|length == 0 %}
+        <div class="alert alert-warning text-center" role="alert">
+            No available match today!
         </div>
-        <span class="match-time">{{ match['utcDate'] }}</span>
-        <div class="match-team">
-            <img src="{{ match['awayTeam']['crest'] }}" alt="{{ match['awayTeam']['name'] }} logo" class="team-logo">
-            <h5>{{ match['awayTeam']['name'] }}</h5>
-        </div>
-        <!-- Add a prediction button -->
-        <div>
-            <a href="/match-prediction?team1={{ match['homeTeam']['id'] }}&team2={{ match['awayTeam']['id'] }}" 
-   class="btn btn-primary predict-btn">Predict</a>
-
-
-        </div>
-    </div>
     {% else %}
-    <p>No matches today.</p>
-    {% endfor %}
+        <!-- Display matches in a styled list -->
+        {% for match in matches %}
+        <div class="match-card">
+            <div class="match-team">
+                <img src="{{ match['homeTeam']['crest'] }}" alt="{{ match['homeTeam']['name'] }} logo" class="team-logo">
+                <h5>{{ match['homeTeam']['name'] }}</h5>
+            </div>
+            <span class="match-time">{{ match['utcDate'] }}</span>
+            <div class="match-team">
+                <img src="{{ match['awayTeam']['crest'] }}" alt="{{ match['awayTeam']['name'] }} logo" class="team-logo">
+                <h5>{{ match['awayTeam']['name'] }}</h5>
+            </div>
+            <!-- Add a prediction button -->
+            <div>
+                <a href="/match-prediction?team1={{ match['homeTeam']['id'] }}&team2={{ match['awayTeam']['id'] }}" 
+                class="btn btn-primary predict-btn">Predict</a>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
 </div>
 
 <!-- Optional: Bootstrap JS and Popper.js for interactivity -->
