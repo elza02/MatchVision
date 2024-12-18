@@ -32,10 +32,10 @@ def fetch_competitions():
             data = {
                 "id": competition["id"],
                 "name": competition["name"],
+                "area": competition["area"]["name"],
                 "code": competition["code"],
                 "type": competition["type"],
                 "emblem": competition["emblem"],
-                "area": competition["area"]["name"]
             }
             producer.send(TOPICS["competitions"], value=data)
             print(f"Produced competition: {data}")
