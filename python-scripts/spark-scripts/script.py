@@ -130,25 +130,24 @@ def save_to_mysql(df, table_name, epoch_id):
                         # Update existing team
                         query = """
                         UPDATE teams
-                        SET name = %s, crest = %s, website = %s, 
-                        founded = %s, club_colors = %s, venue = %s
+                        SET name = %s, competition_name = %s, crest = %s, website = %s, founded = %s,
+                        club_colors = %s, venue = %s
                         WHERE id = %s
                         """
-                        cursor.execute(query, (row.name, crest, website, 
-                                               founded, club_colors, venue, row.id))
+                        cursor.execute(query, (row.name, row.competition_name, row.crest, row.website, 
+                                               row.founded, row.club_colors, row.venue, row.id))
                     else:
                         # Insert new team
                         query = """
                         INSERT INTO teams 
-                        (id, name, competition, crest, website, founded, club_colors, venue)
+                        (id, name, competition_name, crest, website, founded, club_colors, venue)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """
                         cursor.execute("SELECT id FROM competitions WHERE name = %s", (row.competition,))
                         competition = cursor.fetchone()
                         if competition:
-                            cursor.execute(query, (row.id, row.name, row.competition, 
-                                                   crest, website, founded, 
-                                                   club_colors, venue))
+                            cursor.execute(query, (row.id, row.name, row.competition_name, row.crest, row.website,
+                                                    row.founded, row.club_colors, row.venue))
                         else:
                             logging.warning(f"Competition {row.competition} not found for team {row.name}")
                     
@@ -349,7 +348,7 @@ schemas = {
     "teams": StructType([
         StructField("id", IntegerType(), True),
         StructField("name", StringType(), True),
-        StructField("competition", StringType(), True),
+        StructField("competition_name", StringType(), True),
         StructField("crest", StringType(), True),
         StructField("website", StringType(), True),
         StructField("founded", StringType(), True),
