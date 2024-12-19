@@ -136,21 +136,8 @@ def fetch_top_scorers(competition_code, season):
 def fetch_standigs():
     pass
 
-# def fatch_players(competition_code, season):
-#     try:
-#         response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/players?season={season}", headers=HEADERS)
-#         response.raise_for_status()
-#         players = response.json().get("players", [])
-#         competition_id = response.json().get("competition").get("id")
-
-#         for player in players:
-#             data = {
-#                 "id": player["id"],
-#                 "name": player["name"],
-#                 "position": player["position"],
-#                 "date_of_birth": player["dateOfBirth"],
-#                 "nationality": player["nationality"],
-                
+def fetch_players():
+    pass                
     
 
 # Main process

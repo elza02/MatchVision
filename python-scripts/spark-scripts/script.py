@@ -121,9 +121,11 @@ def save_to_mysql(df, table_name, epoch_id):
 
                     # Safety checks for potential None values
                     founded = row.founded if row.founded is not None else None
+                    name = row.name if row.name is not None else ""
                     website = row.website if row.website is not None else ""
                     crest = row.crest if row.crest is not None else ""
                     club_colors = row.club_colors if row.club_colors is not None else ""
+                    competition_name = row.competition_name if row.competition_name is not None else ""
                     venue = row.venue if row.venue is not None else ""
 
                     if team_exists:
@@ -351,7 +353,7 @@ schemas = {
         StructField("competition_name", StringType(), True),
         StructField("crest", StringType(), True),
         StructField("website", StringType(), True),
-        StructField("founded", StringType(), True),
+        StructField("founded", IntegerType(), True),
         StructField("club_colors", StringType(), True),
         StructField("venue", StringType(), True)
     ]),

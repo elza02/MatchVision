@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Team, Competition, Match, PlayerStats, Player, 
+    Team, Competition, Match, PlayerStats, 
     MatchPrediction, TeamFormation, BettingOdds, TopScorer
 )
 
@@ -36,15 +36,6 @@ class MatchSerializer(serializers.ModelSerializer):
             'home_team_details', 'away_team_details'  # Include team details
         ]
 
-
-
-
-
-
-class PlayerStatsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PlayerStats
-        fields = '__all__'
 
 class MatchPredictionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -102,3 +93,4 @@ class PlayerStatsDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerStats
         fields = '__all__'
+

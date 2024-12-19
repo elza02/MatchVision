@@ -19,14 +19,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 # Local imports
 from .models import (
-    Team, Competition, Match, PlayerStats, Player,
+    Team, Competition, Match, PlayerStats, 
     MatchPrediction, TeamFormation, BettingOdds, TopScorer
 )
 from .serializers import (
     TeamSerializer, CompetitionSerializer, MatchSerializer,
     PlayerStatsSerializer, MatchPredictionSerializer,
     TeamDetailSerializer, MatchDetailSerializer, PlayerStatsDetailSerializer,
-    PlayerSerializer,
     TeamFormationSerializer,
     BettingOddsSerializer, TopScorerSerializer
 )
@@ -674,21 +673,21 @@ class PlayerStatsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class PlayerViewSet(viewsets.ModelViewSet):
-    queryset = Player.objects.all()
-    serializer_class = PlayerSerializer
+# class PlayerViewSet(viewsets.ModelViewSet):
+#     queryset = Player.objects.all()
+#     serializer_class = PlayerSerializer
     
-    def get_queryset(self):
-        queryset = Player.objects.all()
-        team_id = self.request.query_params.get('team', None)
-        position = self.request.query_params.get('position', None)
+#     def get_queryset(self):
+#         queryset = Player.objects.all()
+#         team_id = self.request.query_params.get('team', None)
+#         position = self.request.query_params.get('position', None)
         
-        if team_id is not None:
-            queryset = queryset.filter(team_id=team_id)
-        if position is not None:
-            queryset = queryset.filter(position=position)
+#         if team_id is not None:
+#             queryset = queryset.filter(team_id=team_id)
+#         if position is not None:
+#             queryset = queryset.filter(position=position)
             
-        return queryset.select_related('team')
+#         return queryset.select_related('team')
 
 class MatchPredictionViewSet(viewsets.ModelViewSet):
     queryset = MatchPrediction.objects.all()

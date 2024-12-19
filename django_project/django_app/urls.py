@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     TeamViewSet, CompetitionViewSet, MatchViewSet,
-    PlayerStatsViewSet, MatchPredictionViewSet, PlayerViewSet,
+    PlayerStatsViewSet, MatchPredictionViewSet, 
     TeamFormationViewSet, BettingOddsViewSet, TopScorerViewSet,
     dashboard_stats, dashboard_upcoming_matches, dashboard_top_scorers,
     # TwitterFeedViewSet,
@@ -16,15 +16,12 @@ router = DefaultRouter()
 router.register(r'teams', TeamViewSet)
 router.register(r'competitions', CompetitionViewSet)
 router.register(r'matches', MatchViewSet)
-router.register(r'players', PlayerViewSet)
 router.register(r'player-stats', PlayerStatsViewSet)
 router.register(r'match-predictions', MatchPredictionViewSet)
 router.register(r'team-formations', TeamFormationViewSet)
 router.register(r'betting-odds', BettingOddsViewSet)
 router.register(r'top-scorers', TopScorerViewSet)
 
-# Register Twitter viewset separately
-# router.register(r'twitter', TwitterFeedViewSet, basename='twitter')
 
 # Analytics URLs
 router.register(r'analytics', AnalyticsViewSet, basename='analytics')
