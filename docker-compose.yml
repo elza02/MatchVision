@@ -29,15 +29,6 @@ services:
     networks:
       - app-network-2
 
-  kafka-init:
-    build:
-      context: ./kafka-init-scripts
-    container_name: kafka-init-2
-    depends_on:
-      - kafka
-    networks:
-      - app-network-2
-
   python-scripts-spark:
     build: ./python-scripts/spark-scripts
     container_name: python-scripts-spark-2
@@ -48,8 +39,9 @@ services:
       - PYSPARK_SUBMIT_ARGS=--master local[*] pyspark-shell
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka-init
+      - kafka
       - mysql-db
+      - mongodb
     networks:
       - app-network-2
 
@@ -62,7 +54,7 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka-init
+      - kafka
       - mysql-db
     networks:
       - app-network-2
@@ -71,14 +63,25 @@ services:
     image: mysql:8.0
     container_name: mysql-football-2
     environment:
-      MYSQL_ROOT_PASSWORD: houcine
-      MYSQL_USER: houcine
-      MYSQL_PASSWORD: houcine
-      MYSQL_DATABASE: football_2
+      MYSQL_ROOT_PASSWORD: houcine  # Set up only the root user
     ports:
       - "3307:3306"
     volumes:
       - mysql_data_2:/var/lib/mysql
+      - ./mysql-init-scripts:/docker-entrypoint-initdb.d  # Add this for initialization scripts
+    networks:
+      - app-network-2
+
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb-football-2
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: houcine
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data_2:/data/db
     networks:
       - app-network-2
 
@@ -96,3 +99,4 @@ networks:
 
 volumes:
   mysql_data_2:
+  mongo_data_2:

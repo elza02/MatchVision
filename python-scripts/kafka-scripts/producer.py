@@ -12,7 +12,9 @@ TOPICS = {
     "teams": "teams-topic",
     "competitions": "competitions-topic",
     "matches": "matches-topic",
-    "top_scorers": "top-scorers-topic"
+    "top_scorers": "top-scorers-topic",
+    "standings": "standings-topic",
+    "players": "players-topic",
 }
 
 # Initialize Kafka Producer
@@ -28,18 +30,7 @@ def fetch_competitions():
         response.raise_for_status()
         competitions = response.json().get("competitions", [])
 
-        for competition in competitions:
-            data = {
-                "id": competition["id"],
-                "name": competition["name"],
-                "area": competition["area"]["name"],
-                "code": competition["code"],
-                "type": competition["type"],
-                "emblem": competition["emblem"],
-            }
-            producer.send(TOPICS["competitions"], value=data)
-            print(f"Produced competition: {data}")
-
+        producer.send(TOPICS["competitions"], value=competitions)
         producer.flush()
         print(f"Produced {len(competitions)} competitions to Kafka.")
         competition_codes = [c["code"] for c in competitions]
@@ -49,60 +40,37 @@ def fetch_competitions():
         print(f"Error fetching competitions: {e}")
         return []
 
-def fetch_teams(competition_code, competition_name):
+
+def fetch_teams_by_competition(competition_code, season):
     try:
-        response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/teams", headers=HEADERS)
+        response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/teams?season={season}", headers=HEADERS)
         response.raise_for_status()
         teams = response.json().get("teams", [])
+        competition = response.json().get("competition", {}) if response else "Unknown"
 
-        for team in teams:
-            data = {
-                "id": team["id"],
-                "name": team["name"],
-                "competition_name": competition_name,
-                "crest": team["crest"],
-                "website": team.get("website", "Unknown Website"),
-                "founded": team.get("founded", "Unknown Founded"),
-                "club_colors": team.get("clubColors", "Unknown Colors"),
-                "venue": team.get("venue", "Unknown Venue")
-            }
-            producer.send(TOPICS["teams"], value=data)
-            print(f"Produced team: {data}")
-
+        data = {"season": season, "competition": competition, "teams": teams}
+        
+        producer.send(TOPICS["teams"], value=data)
         producer.flush()
-        print(f"Produced {len(teams)} teams for competition {competition_name}.")
-        return {t["id"]: t for t in teams}
+        print(f"Produced {len(teams)} teams.")
     except Exception as e:
-        print(f"Error fetching teams for competition {competition_name}: {e}")
+        print(f"Error fetching teams for competition {response.json().get('competition', {}).get('name', '')}: {e}")
         return {}
 
-def fetch_matches(competition_code, season, team_map):
+
+def fetch_matches_by_competition(competition_code, season):
     try:
         response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/matches?season={season}", headers=HEADERS)
         response.raise_for_status()
         matches = response.json().get("matches", [])
-        competition_id = response.json().get("competition").get("id")
+        competition = response.json().get("competition", {}) if response else "Unknown"
+        data = {"season": season, "competition": competition, "matches": matches}        
 
-        for match in matches:
-            data = {
-                "id": match["id"],
-                "competition_id": competition_id,
-                "season": season,
-                "match_date": match["utcDate"],
-                "status": match["status"],
-                "home_team_id": match["homeTeam"]["id"],
-                "away_team_id": match["awayTeam"]["id"],
-                "home_team_score": match["score"]["fullTime"].get("home"),
-                "away_team_score": match["score"]["fullTime"].get("away"),
-                "referee": match.get("referees")[0].get("name") if match.get("referees") else None,
-            }
-            producer.send(TOPICS["matches"], value=data)
-            print(f"Produced match: {data}")
-
+        producer.send(TOPICS["matches"], value=data)
         producer.flush()
-        print(f"Produced {len(matches)} matches for competition {competition_id}, season {season}.")
+        print(f"Produced {len(matches)} matches for competition {response.json().get('competition', {}).get('name', '')}, season {season}.")
     except Exception as e:
-        print(f"Error fetching matches for competition {competition_id}, season {season}: {e}")
+        print(f"Error fetching matches for competition {response.json().get('competition', {}).get('name', '')}, season {season}: {e}")
 
 
 def fetch_top_scorers(competition_code, season):
@@ -110,31 +78,30 @@ def fetch_top_scorers(competition_code, season):
         response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/scorers?season={season}", headers=HEADERS)
         response.raise_for_status()
         scorers = response.json().get("scorers", [])
-        competition_id = response.json().get("competition").get("id")
-
-        for scorer in scorers:
-            if scorer["player"].get("id") and scorer["team"].get("id"):
-                data = {
-                    "player_id": scorer["player"].get("id"),
-                    "player_name": scorer["player"].get("name", "Unknown"),
-                    "team_id": scorer["team"].get("id"),
-                    "competition_id": competition_id,
-                    "season": season,
-                    "goals": scorer.get("goals", 0),
-                    "assists": scorer.get("assists", 0),
-                    "playedMatches": scorer.get("playedMatches"),
-                    "penalties": scorer.get("penalties", 0),
-                }
-                producer.send(TOPICS["top_scorers"], value=data)
-                print(f"Produced top scorer: {data}")
-
+        competition = response.json().get("competition", {}) if response else "Unknown"
+        
+        data = {"season": season, "competition": competition, "scorers": scorers}
+        producer.send(TOPICS["top_scorers"], value=data)
         producer.flush()
-        print(f"Produced {len(scorers)} top scorers for competition {competition_id}, season {season}.")
+        print(f"Produced {len(scorers)} top scorers for competition {response.json().get('competition', {}).get('name', '')}, season {season}.")
     except Exception as e:
-        print(f"Error fetching top scorers for competition {competition_id}, season {season}: {e}")
+        print(f"Error fetching top scorers for competition {response.json().get('competition', {}).get('name', '')}, season {season}: {e}")
 
-def fetch_standigs():
-    pass
+def fetch_standings(competition_code, season):
+    try:
+        response = requests.get(f"{API_BASE_URL}competitions/{competition_code}/standings?season={season}", headers=HEADERS)
+        response.raise_for_status()
+        standings = response.json()
+        competition = response.json().get("competition", {}) if response else "Unknown"
+        
+        data = {"season": season, "competition": competition, "standings": standings}
+        
+        producer.send(TOPICS["standings"], value=data)
+        producer.flush()
+        print(f"Produced {len(standings)} standings for competition {response.json().get('competition', {}).get('name', '')}, season {season}.")
+    except Exception as e:
+        print(f"Error fetching standings for competition {response.json().get('competition', {}).get('name', '')}, season {season}: {e}")
+        
 
 def fetch_players():
     pass                
@@ -142,28 +109,42 @@ def fetch_players():
 
 # Main process
 def main():
-    competition_codes, competition_names = fetch_competitions()
+    """Fetch data from the football-data API and produce to Kafka topics."""
+    competition_codes, competition_names = fetch_competitions() ## competitions
     seasons = [2022, 2023, 2024]
-
+    
+    # Fetch data for each competition and season
     for competition_code, competition_name in zip(competition_codes, competition_names):
-        print(f"Fetching teams for competition {competition_name}...")
-        team_map = fetch_teams(competition_code, competition_name)
-        time.sleep(6)
-
         for season in seasons:
+
+            print(f"Fetching teams for competition {competition_name}...")
+            try:
+                fetch_teams_by_competition(competition_code, season) ## teams     
+            except Exception as e:
+                print(f"Skipping teams for competition {competition_name} due to error: {e}")
+            time.sleep(6)
+            
             print(f"Fetching matches for competition {competition_name}, season {season}...")
             try:
-                fetch_matches(competition_code, season, team_map)
+                fetch_matches_by_competition(competition_code, season) ## matches
             except Exception as e:
                 print(f"Skipping matches for competition {competition_name}, season {season} due to error: {e}")
             time.sleep(6)
 
             print(f"Fetching top scorers for competition {competition_name}, season {season}...")
             try:
-                fetch_top_scorers(competition_code, season)
+                fetch_top_scorers(competition_code, season) ## top scorers
             except Exception as e:
                 print(f"Skipping top scorers for competition {competition_code}, season {season} due to error: {e}")
             time.sleep(6)
+            
+            print(f"Fetching standings for competition {competition_name}, season {season}...")
+            try:
+                fetch_standings(competition_code, season) ## standings
+            except Exception as e:
+                print(f"Skipping standings for competition {competition_code}, season {season} due to error: {e}")
+            time.sleep(6)
+            
 
 
 if __name__ == "__main__":
