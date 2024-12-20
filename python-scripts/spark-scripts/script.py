@@ -1,14 +1,13 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StringType
-from pyspark.sql.functions import from_json, col
+from pyspark.sql.functions import col
 from pymongo import MongoClient
 import json
 
-# MongoDB Configuration
+# Configuration MongoDB
 MONGO_URI = "mongodb://root:houcine@mongodb-football-2:27017/"
 DATABASE_NAME = "football_data"
 
-# Kafka Configuration
+# Configuration Kafka
 KAFKA_BROKER = "kafka:29092"
 TOPICS = {
     "teams": "teams-topic",
@@ -18,39 +17,40 @@ TOPICS = {
     "standings": "standings-topic",
 }
 
-# Initialize Spark Session
+# Initialiser la session Spark
 spark = SparkSession.builder \
     .appName("KafkaToMongoDB") \
     .getOrCreate()
 
 spark.sparkContext.setLogLevel("OFF")
 
-# MongoDB Client
+# Client MongoDB
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client[DATABASE_NAME]
 
 def save_to_mongo(data, collection_name):
-    """Save parsed JSON data to MongoDB."""
+    """Enregistrer les données JSON dans MongoDB."""
     collection = db[collection_name]
     for record in data:
         try:
             collection.insert_one(record)
         except Exception as e:
-            print(f"Error saving to MongoDB: {e}")
+            print(f"Erreur lors de l'enregistrement dans MongoDB: {e}")
 
 def process_stream(df, topic_name):
-    """Process each micro-batch of Kafka stream."""
-    data = df.selectExpr("CAST(value AS STRING)") \
-             .withColumn("json_data", from_json(col("value"), StringType())) \
-             .select("json_data.*")
+    """Traiter chaque micro-lot de flux Kafka."""
+    # Lire les données en tant que chaîne JSON
+    data = df.selectExpr("CAST(value AS STRING) AS json_string")
     
-    # Collect and save to MongoDB
+    # Collecter les données JSON sans schéma
     json_data = data.toJSON().map(lambda x: json.loads(x)).collect()
+    
+    # Enregistrer dans MongoDB
     save_to_mongo(json_data, topic_name)
 
-# Read from Kafka and process each topic
+# Lire depuis Kafka et traiter chaque sujet
 for topic, kafka_topic in TOPICS.items():
-    print(f"Starting stream for topic: {topic}")
+    print(f"Démarrage du flux pour le sujet: {topic}")
     kafka_df = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", KAFKA_BROKER) \
@@ -63,5 +63,5 @@ for topic, kafka_topic in TOPICS.items():
 
     query.awaitTermination()
 
-# Stop MongoDB client after completion
+# Arrêter le client MongoDB après la fin
 mongo_client.close()
