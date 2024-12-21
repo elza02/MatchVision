@@ -1,18 +1,18 @@
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
-    container_name: zookeeper-football-2
+    container_name: zookeeper-football
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2182:2181"
     networks:
-      - app-network-2
+      - app-network
 
   kafka:
     image: confluentinc/cp-kafka:7.3.0
-    container_name: kafka-football-2
+    container_name: kafka-football
     depends_on:
       - zookeeper
     ports:
@@ -27,13 +27,13 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9093
     networks:
-      - app-network-2
+      - app-network
 
   python-scripts-spark:
     build: ./python-scripts/spark-scripts
-    container_name: python-scripts-spark-2
+    container_name: python-scripts-spark
     volumes:
-      - ./python-scripts:/spark-scripts
+      - ./python-scripts/spark-scripts:/spark-scripts
       - ./jars:/app/jars
     environment:
       - PYSPARK_SUBMIT_ARGS=--master local[*] pyspark-shell
@@ -43,13 +43,13 @@ services:
       - mysql-db
       - mongodb
     networks:
-      - app-network-2
+      - app-network
 
   python-scripts-kafka:
     build: ./python-scripts/kafka-scripts
-    container_name: python-scripts-kafka-2
+    container_name: python-scripts-kafka
     volumes:
-      - ./python-scripts:/kafka-scripts
+      - ./python-scripts/kafka/scripts:/kafka-scripts/
       - ./.env:/kafka-scripts/.env
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -57,46 +57,45 @@ services:
       - kafka
       - mysql-db
     networks:
-      - app-network-2
+      - app-network
 
   mysql-db:
     image: mysql:8.0
-    container_name: mysql-football-2
+    container_name: mysql-football
     environment:
       MYSQL_ROOT_PASSWORD: houcine  # Set up only the root user
     ports:
       - "3307:3306"
     volumes:
-      - mysql_data_2:/var/lib/mysql
-      - ./mysql-init-scripts:/docker-entrypoint-initdb.d  # Add this for initialization scripts
+      - mysql_data:/var/lib/mysql
     networks:
-      - app-network-2
+      - app-network
 
   mongodb:
     image: mongo:6.0
-    container_name: mongodb-football-2
+    container_name: mongodb-football
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: houcine
     ports:
       - "27018:27017"
     volumes:
-      - mongo_data_2:/data/db
+      - mongo_data:/data/db
     networks:
-      - app-network-2
+      - app-network
 
   redis:
     image: redis:6.2-alpine
-    container_name: redis-football-2
+    container_name: redis-football
     ports:
       - "6380:6379"
     networks:
-      - app-network-2
+      - app-network
 
 networks:
-  app-network-2:
+  app-network:
     driver: bridge
 
 volumes:
-  mysql_data_2:
-  mongo_data_2:
+  mysql_data:
+  mongo_data:

@@ -2,28 +2,63 @@
 from django.db import models
 
 class Team(models.Model):
-    id = models.IntegerField(primary_key=True)
-    name = models.CharField(max_length=100)
-    competition_name = models.CharField(max_length=100)
-    venue = models.CharField(max_length=100, null=True)
+    name = models.CharField(max_length=100, null=True)
+    short_name = models.CharField(max_length=50, null=True)
+    tla = models.CharField(max_length=10, null=True)
+    crest = models.URLField(max_length=200, null=True)
+    address = models.CharField(max_length=200, null=True)
     website = models.URLField(max_length=200, null=True)
     founded = models.IntegerField(null=True)
     club_colors = models.CharField(max_length=100, null=True)
-    crest = models.URLField(max_length=200, null=True)
-   
+    venue = models.CharField(max_length=100, null=True)
+    competition = models.ForeignKey('Competition', models.CASCADE, null=True) # we used string references to avoid the problem of reordering class definition
+    area = models.ForeignKey('Area', models.CASCADE, null=True)
+    coach = models.ForeignKey('Coach', models.CASCADE, null=True)
+    season = models.CharField(max_length=20, null=True)
+     
+    
     class Meta:
         db_table = 'teams'
 
     def __str__(self):
         return self.name
 
+class Coach(models.Model):
+    first_name = models.CharField(max_length=50, null=True)
+    last_name = models.CharField(max_length=50, null=True)
+    name = models.CharField(max_length=100, null=True)
+    date_of_birth = models.DateField(null=True)
+    nationality = models.CharField(max_length=100, null=True)
+    contract_start_date = models.DateField(null=True)
+    contract_end_date = models.DateField(null=True)
+    
+    class Meta:
+        db_table = 'coaches'
+
+class Player(models.Model):
+    name = models.CharField(max_length=100)
+    position = models.CharField(max_length=50)
+    date_of_birth = models.DateField(null=True)
+    nationality = models.CharField(max_length=100)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players')
+    
+    class Meta:
+        db_table = 'players'
+    
+class Area(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20)
+    flag = models.URLField(max_length=200, null=True)
+    
+    class Meta:
+        db_table = 'areas'
+
 class Competition(models.Model):
-    id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, null=True, default='')
-    area = models.CharField(max_length=100, null=True, default='')
     code = models.CharField(max_length=20, null=True, default='')
     type = models.CharField(max_length=20, null=True, default='LEAGUE')
     emblem = models.CharField(max_length=200, null=True, default='')
+    area = models.ForeignKey(Area, on_delete=models.CASCADE, null=True)
 
     class Meta:
         db_table = 'competitions'
@@ -32,110 +67,32 @@ class Competition(models.Model):
         return self.name
 
 class Match(models.Model):
-    id = models.IntegerField(primary_key=True)
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
-    season = models.CharField(max_length=20, null=True, default='')
-    home_team = models.ForeignKey(Team, related_name='home_matches', on_delete=models.CASCADE, null=True)
-    away_team = models.ForeignKey(Team, related_name='away_matches', on_delete=models.CASCADE, null=True)
     match_date = models.DateTimeField(null=True)
     status = models.CharField(max_length=20, null=True, default='')
     stage = models.CharField(max_length=50, null=True, default='')
+    home_team = models.ForeignKey(Team, related_name='home_matches', on_delete=models.CASCADE, null=True)
+    away_team = models.ForeignKey(Team, related_name='away_matches', on_delete=models.CASCADE, null=True)
     home_team_score = models.IntegerField(null=True, default=0)
     away_team_score = models.IntegerField(null=True, default=0)
-    referee = models.CharField(max_length=100, null=True, default='')
+    season = models.CharField(max_length=20, null=True, default='')
+    area = models.ForeignKey(Area, on_delete=models.CASCADE, null=True)
     
     class Meta:
         db_table = 'matches'
 
     def __str__(self):
         return f"{self.home_team} vs {self.away_team}"
-
-class Player(models.Model):
-    id = models.IntegerField(primary_key=True)
-    name = models.CharField(max_length=100)
-    position = models.CharField(max_length=50)
-    nationality = models.CharField(max_length=100)
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players')
-    shirt_number = models.IntegerField(null=True)
-    age = models.IntegerField(null=True)
-    market_value = models.DecimalField(max_digits=12, decimal_places=2, null=True)
-
-    class Meta:
-        db_table = 'players'
-
-    def __str__(self):
-        return f"{self.name} ({self.team})"
-
-class PlayerStats(models.Model):
-    player_id = models.IntegerField(primary_key=True)
-    name = models.CharField(max_length=100, null=True, default='')
-    position = models.CharField(max_length=50, null=True, default='')
-    nationality = models.CharField(max_length=100, null=True, default='')
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
-    goals = models.IntegerField(null=True, default=0)
-    assists = models.IntegerField(null=True, default=0)
-    minutes_played = models.IntegerField(null=True, default=0)
-    match = models.ForeignKey(Match, on_delete=models.CASCADE, null=True)
-
-    class Meta:
-        db_table = 'player_stats'
-
-    def __str__(self):
-        return f"{self.name} - {self.team}"
-
-class MatchPrediction(models.Model):
-    match = models.OneToOneField(Match, primary_key=True, on_delete=models.CASCADE)
-    home_team_win_prob = models.FloatField(default=0.0, null=False)
-    draw_prob = models.FloatField(default=0.0, null=False)
-    away_team_win_prob = models.FloatField(default=0.0, null=False)
-    predicted_score = models.CharField(max_length=20)
     
-    class Meta:
-        db_table = 'match_predictions'
-
-    def __str__(self):
-        return f"Prediction for {self.match}"
-
-class TeamFormation(models.Model):
-    match = models.ForeignKey(Match, on_delete=models.CASCADE)
-    team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    formation = models.CharField(max_length=20)
-    players = models.JSONField()
-    
-    class Meta:
-        db_table = 'team_formations'
-        unique_together = ('match', 'team')
-    
-    def __str__(self):
-        return f"{self.team} formation in {self.match}"
-
-class BettingOdds(models.Model):
-    id = models.AutoField(primary_key=True)
-    match = models.ForeignKey(Match, on_delete=models.CASCADE)
-    home_win_odds = models.FloatField()
-    draw_odds = models.FloatField()
-    away_win_odds = models.FloatField()
-    timestamp = models.DateTimeField()  # Changed to store API timestamp
-       
-    class Meta:
-        db_table = 'betting_odds'
-        indexes = [
-            models.Index(fields=['match', 'timestamp']),  # Index for efficient querying
-        ]
-
-    def __str__(self):
-        return f"Odds for {self.match} at {self.timestamp}"
-
 class TopScorer(models.Model):
-    player_id = models.IntegerField(primary_key=True)
-    player_name = models.CharField(max_length=100, null=True, default='')
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
-    season = models.CharField(max_length=20, null=True, default='')
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, null=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
+    played_matches = models.IntegerField(default=0)
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
-    played_matches = models.IntegerField(default=0)
     penalties = models.IntegerField(default=0)
+    season = models.CharField(max_length=20, null=True, default='')
 
     class Meta:
         db_table = 'top_scorers'
@@ -144,3 +101,26 @@ class TopScorer(models.Model):
     def __str__(self):
         return f"{self.player_name} - {self.goals} goals ({self.competition}, {self.season})"
 
+
+class Standing(models.Model):
+    competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
+    area = models.ForeignKey(Area, on_delete=models.CASCADE, null=True)
+    position = models.IntegerField(default=0)
+    played_games = models.IntegerField(default=0)
+    form = models.CharField(max_length=10, null=True, default='')
+    won = models.IntegerField(default=0)
+    draw = models.IntegerField(default=0)
+    lost = models.IntegerField(default=0)
+    points = models.IntegerField(default=0)
+    goals_for = models.IntegerField(default=0)
+    goals_against = models.IntegerField(default=0)
+    goal_difference = models.IntegerField(default=0)
+    season = models.CharField(max_length=20, null=True, default='')
+
+    class Meta:
+        db_table = 'standings'
+        unique_together = ('team', 'competition', 'season')
+
+    def __str__(self):
+        return f"{self.team} - {self.points} points ({self.competition}, {self.season})"

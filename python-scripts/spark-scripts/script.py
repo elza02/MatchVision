@@ -3,8 +3,6 @@ from pymongo import MongoClient
 import json
 from typing import Dict, Any, Union
 import logging
-from concurrent.futures import ThreadPoolExecutor
-import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

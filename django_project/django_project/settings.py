@@ -117,7 +117,7 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'football_2',
+        'NAME': 'football_data',
         'USER': 'houcine',
         'PASSWORD': 'houcine',
         'HOST': 'localhost',  
