@@ -11,17 +11,28 @@ class Team(models.Model):
     founded = models.IntegerField(null=True)
     club_colors = models.CharField(max_length=100, null=True)
     venue = models.CharField(max_length=100, null=True)
-    competition = models.ForeignKey('Competition', models.CASCADE, null=True) # we used string references to avoid the problem of reordering class definition
     area = models.ForeignKey('Area', models.CASCADE, null=True)
     coach = models.ForeignKey('Coach', models.CASCADE, null=True)
     season = models.CharField(max_length=20, null=True)
      
-    
     class Meta:
         db_table = 'teams'
 
     def __str__(self):
         return self.name
+    
+class TeamCompetition(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
+    competition = models.ForeignKey('Competition', on_delete=models.CASCADE, null=True)
+    season = models.CharField(max_length=20, null=True)
+    
+    class Meta:
+        db_table = 'team_competitions'
+        unique_together = ('team', 'competition', 'season')
+
+    def __str__(self):
+        return f"{self.team} - {self.competition} ({self.season})"
+
 
 class Coach(models.Model):
     first_name = models.CharField(max_length=50, null=True)
@@ -35,6 +46,7 @@ class Coach(models.Model):
     class Meta:
         db_table = 'coaches'
 
+
 class Player(models.Model):
     name = models.CharField(max_length=100)
     position = models.CharField(max_length=50)
@@ -45,6 +57,7 @@ class Player(models.Model):
     class Meta:
         db_table = 'players'
     
+    
 class Area(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20)
@@ -52,6 +65,7 @@ class Area(models.Model):
     
     class Meta:
         db_table = 'areas'
+
 
 class Competition(models.Model):
     name = models.CharField(max_length=100, null=True, default='')
@@ -65,6 +79,7 @@ class Competition(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Match(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
@@ -83,6 +98,7 @@ class Match(models.Model):
 
     def __str__(self):
         return f"{self.home_team} vs {self.away_team}"
+    
     
 class TopScorer(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
