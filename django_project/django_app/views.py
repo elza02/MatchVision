@@ -17,6 +17,7 @@ from .serializers import (
 )
 from django.db import connection
 from django.db import models
+from django.shortcuts import get_object_or_404
 
 class DashboardStatsView(APIView):
     def get(self, request):
@@ -244,109 +245,188 @@ class MatchPredictionsView(APIView):
         return Response(predictions)
 
 class AnalyticsOverviewView(APIView):
+    def calculate_goals_trend(self, matches):
+        goals_trend = []
+        try:
+            if matches:
+                matches = matches.order_by('match_date')
+                running_total = 0
+                match_count = 0
+                
+                for match in matches:
+                    if match.match_date:  # Only include matches with valid dates
+                        match_count += 1
+                        match_goals = (match.home_team_score or 0) + (match.away_team_score or 0)
+                        running_total += match_goals
+                        goals_trend.append({
+                            'matchday': match_count,
+                            'average_goals': round(running_total / match_count, 2),
+                            'date': match.match_date.strftime('%Y-%m-%d')
+                        })
+        except Exception as e:
+            print(f"Error calculating goals trend: {str(e)}")
+            return []
+        return goals_trend
+
     def get(self, request):
         try:
-            # Get all matches
-            matches = Match.objects.all()
+            # Get all matches with status check
+            matches = Match.objects.filter(status='FINISHED')
+            if not matches.exists():
+                return Response({
+                    'summary': {
+                        'total_matches': 0,
+                        'total_goals': 0,
+                        'average_goals_per_match': 0,
+                        'total_teams': 0
+                    },
+                    'goals_trend': [],
+                    'area_stats': []
+                })
+
             total_matches = matches.count()
-            total_goals = sum(match.home_team_score + match.away_team_score for match in matches)
+            
+            # Calculate total goals safely handling None values
+            total_goals = sum(
+                (match.home_team_score or 0) + (match.away_team_score or 0) 
+                for match in matches
+            )
             
             # Calculate goals trend
             goals_trend = self.calculate_goals_trend(matches)
             
             # Calculate area statistics
             teams = Team.objects.all()
-            total_teams = teams.count()  # Get total number of teams
-            area_stats = []
+            total_teams = teams.count()
             area_counts = {}
             
             for team in teams:
-                area = team.area
-                if area in area_counts:
-                    area_counts[area] += 1
-                else:
-                    area_counts[area] = 1
+                area_name = team.area.name if team.area else "Unknown"  # Get area name directly
+                area_counts[area_name] = area_counts.get(area_name, 0) + 1
             
-            for area, count in area_counts.items():
-                area_stats.append({
-                    'name': area,
+            area_stats = [
+                {
+                    'name': area_name,
                     'team_count': count
-                })
+                }
+                for area_name, count in area_counts.items()
+                if area_name  # Filter out any remaining None values
+            ]
             
             # Sort area_stats by team_count in descending order
             area_stats = sorted(area_stats, key=lambda x: x['team_count'], reverse=True)
             
-            return Response({
+            response_data = {
                 'summary': {
                     'total_matches': total_matches,
                     'total_goals': total_goals,
                     'average_goals_per_match': round(total_goals / total_matches, 2) if total_matches > 0 else 0,
-                    'total_teams': total_teams  # Add total teams to the response
+                    'total_teams': total_teams
                 },
                 'goals_trend': goals_trend,
                 'area_stats': area_stats
-            })
+            }
+            
+            return Response(response_data)
+            
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            print(f"Error in AnalyticsOverviewView: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class TeamAnalyticsView(APIView):
     def get(self, request, team_id):
         try:
-            team = Team.objects.get(id=team_id)
+            # Verify team exists
+            team = get_object_or_404(Team, id=team_id)
             
-            # Get match results
+            # Get team's matches
             matches = Match.objects.filter(
                 Q(home_team=team) | Q(away_team=team),
                 status='FINISHED'
             ).order_by('match_date')
             
+            if not matches.exists():
+                return Response({
+                    'performance': [],
+                    'top_scorers': [],
+                    'summary': {
+                        'total_matches': 0,
+                        'wins': 0,
+                        'draws': 0,
+                        'losses': 0,
+                        'goals_for': 0,
+                        'goals_against': 0
+                    }
+                })
+            
             # Calculate performance metrics
             performance = []
             running_points = 0
-            match_count = 0
+            total_matches = 0
+            wins = 0
+            draws = 0
+            losses = 0
+            goals_for = 0
+            goals_against = 0
             
             for match in matches:
-                match_count += 1
-                is_home = match.home_team_id == team.id
+                total_matches += 1
+                
+                # Determine if team was home or away
+                is_home = match.home_team == team
                 team_score = match.home_team_score if is_home else match.away_team_score
                 opponent_score = match.away_team_score if is_home else match.home_team_score
                 
-                # Calculate points for this match
+                # Handle None values
+                team_score = team_score or 0
+                opponent_score = opponent_score or 0
+                
+                # Update statistics
+                goals_for += team_score
+                goals_against += opponent_score
+                
+                # Calculate match points
                 if team_score > opponent_score:
                     points = 3
+                    wins += 1
                 elif team_score == opponent_score:
                     points = 1
+                    draws += 1
                 else:
                     points = 0
-                    
+                    losses += 1
+                
                 running_points += points
                 
                 performance.append({
-                    'match_date': match.match_date,
+                    'match_date': match.match_date.strftime('%Y-%m-%d'),
                     'opponent': match.away_team.name if is_home else match.home_team.name,
                     'score': f"{team_score}-{opponent_score}",
                     'points': points,
                     'running_points': running_points,
-                    'average_points': round(running_points / match_count, 2)
+                    'average_points': round(running_points / total_matches, 2)
                 })
             
-            # Get top scorers for the team
-            top_scorers = TopScorer.objects.filter(team=team).order_by('-goals')[:5]
-            
-            return Response({
-                'team_info': {
-                    'name': team.name,
-                    'founded': team.founded,
-                    'venue': team.venue,
-                    'area': team.area.name if team.area else 'Unknown'
-                },
+            response_data = {
                 'performance': performance,
-                'top_scorers': [{
-                    'player': scorer.player.name,
-                    'goals': scorer.goals,
-                    'assists': scorer.assists
-                } for scorer in top_scorers]
-            })
+                'summary': {
+                    'total_matches': total_matches,
+                    'wins': wins,
+                    'draws': draws,
+                    'losses': losses,
+                    'goals_for': goals_for,
+                    'goals_against': goals_against,
+                    'goal_difference': goals_for - goals_against,
+                    'points': running_points,
+                    'average_points': round(running_points / total_matches, 2) if total_matches > 0 else 0
+                }
+            }
+            
+            return Response(response_data)
+            
         except Team.DoesNotExist:
             return Response(
                 {'error': 'Team not found'},
@@ -355,7 +435,7 @@ class TeamAnalyticsView(APIView):
         except Exception as e:
             print(f"Error in TeamAnalyticsView: {str(e)}")
             return Response(
-                {'error': 'Failed to fetch team analytics'},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

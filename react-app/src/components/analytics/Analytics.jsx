@@ -21,6 +21,11 @@ import {
   StatNumber,
   StatHelpText,
   Container,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Center
 } from '@chakra-ui/react';
 import {
   LineChart,
@@ -59,14 +64,78 @@ function Analytics() {
   const [teams, setTeams] = useState([]);
   const [teamAnalytics, setTeamAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
+  const [error, setError] = useState(null);
   const [tabIndex, setTabIndex] = useState(0);
   const toast = useToast();
 
-  useEffect(() => {
-    setIsMounted(true);
-    return () => setIsMounted(false);
-  }, []);
+  const fetchOverview = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get('/analytics/overview/');
+      console.log('Overview data:', response);
+      setOverview(response);
+    } catch (err) {
+      console.error('Error fetching overview:', err);
+      setError(err.message || 'Failed to fetch analytics overview');
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch analytics overview',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTeams = async () => {
+    try {
+      const response = await api.get('/teams/');
+      console.log('Teams data:', response);
+      if (Array.isArray(response)) {
+        setTeams(response);
+      } else {
+        setTeams([]);
+        console.error('Teams data is not an array:', response);
+      }
+    } catch (err) {
+      console.error('Error fetching teams:', err);
+      setTeams([]);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch teams',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const fetchTeamAnalytics = async (teamId) => {
+    if (!teamId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get(`/analytics/team/${teamId}/`);
+      console.log('Team analytics data:', response);
+      setTeamAnalytics(response);
+    } catch (err) {
+      console.error('Error fetching team analytics:', err);
+      setError(err.message || 'Failed to fetch team analytics');
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch team analytics',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchOverview();
@@ -76,63 +145,26 @@ function Analytics() {
   useEffect(() => {
     if (selectedTeam) {
       fetchTeamAnalytics(selectedTeam);
+    } else {
+      setTeamAnalytics(null);
     }
   }, [selectedTeam]);
 
-  const fetchOverview = async () => {
-    try {
-      const response = await api.get('/analytics/overview/');
-      setOverview(response.data);
-    } catch (error) {
-      console.error('Error fetching overview:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load analytics overview',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const fetchTeams = async () => {
-    try {
-      const response = await api.get('/teams/');
-      setTeams(response.data.results);
-      if (response.data.results.length > 0) {
-        setSelectedTeam(response.data.results[0].id);
-      }
-    } catch (error) {
-      console.error('Error fetching teams:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTeamAnalytics = async (teamId) => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/analytics/team/${teamId}/`);
-      setTeamAnalytics(response.data);
-    } catch (error) {
-      console.error('Error fetching team analytics:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load team analytics',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (loading && !overview && !teamAnalytics) {
     return (
-      <Box p={4} display="flex" justifyContent="center" alignItems="center" height={CHART_HEIGHT}>
+      <Center p={8}>
         <Spinner size="xl" />
-      </Box>
+      </Center>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert status="error">
+        <AlertIcon />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
@@ -147,7 +179,7 @@ function Analytics() {
 
         <TabPanels>
           <TabPanel>
-            {overview && isMounted && (
+            {overview?.summary && (
               <>
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={8}>
                   <Card>
@@ -169,30 +201,48 @@ function Analytics() {
                       </Stat>
                     </CardBody>
                   </Card>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Total Teams</StatLabel>
+                        <StatNumber>{overview.summary.total_teams}</StatNumber>
+                      </Stat>
+                    </CardBody>
+                  </Card>
                 </SimpleGrid>
 
-                <Card>
-                  <CardHeader>
-                    <Heading size="md">Goals Trend</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <ChartContainer>
-                      <LineChart data={overview.goals_trend}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="matchday" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="average_goals"
-                          stroke="#8884d8"
-                          name="Average Goals"
-                        />
-                      </LineChart>
-                    </ChartContainer>
-                  </CardBody>
-                </Card>
+                {overview.goals_trend && overview.goals_trend.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Goals Trend</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Box height="400px">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={overview.goals_trend}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="date"
+                              tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                            />
+                            <YAxis />
+                            <Tooltip 
+                              labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                            />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="average_goals"
+                              stroke="#8884d8"
+                              name="Average Goals"
+                              dot={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </CardBody>
+                  </Card>
+                )}
               </>
             )}
           </TabPanel>
@@ -203,8 +253,9 @@ function Analytics() {
                 value={selectedTeam || ''}
                 onChange={(e) => setSelectedTeam(e.target.value)}
                 placeholder="Select a team"
+                isDisabled={!teams || teams.length === 0}
               >
-                {teams.map((team) => (
+                {Array.isArray(teams) && teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
                   </option>
@@ -212,61 +263,87 @@ function Analytics() {
               </Select>
             </Box>
 
-            {teamAnalytics && isMounted && (
+            {teamAnalytics?.summary && (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <Card>
                   <CardHeader>
-                    <Heading size="md">Points Progression</Heading>
+                    <Heading size="md">Team Summary</Heading>
                   </CardHeader>
                   <CardBody>
-                    <ChartContainer>
-                      <LineChart data={teamAnalytics.performance}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="match_date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="running_points"
-                          stroke="#8884d8"
-                          name="Total Points"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="average_points"
-                          stroke="#82ca9d"
-                          name="Average Points"
-                        />
-                      </LineChart>
-                    </ChartContainer>
+                    <SimpleGrid columns={2} spacing={4}>
+                      <Stat>
+                        <StatLabel>Matches</StatLabel>
+                        <StatNumber>{teamAnalytics.summary.total_matches}</StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Points</StatLabel>
+                        <StatNumber>{teamAnalytics.summary.points}</StatNumber>
+                        <StatHelpText>
+                          Avg: {teamAnalytics.summary.average_points} per match
+                        </StatHelpText>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Record</StatLabel>
+                        <StatNumber>
+                          {teamAnalytics.summary.wins}W-{teamAnalytics.summary.draws}D-{teamAnalytics.summary.losses}L
+                        </StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Goals</StatLabel>
+                        <StatNumber>
+                          {teamAnalytics.summary.goals_for}-{teamAnalytics.summary.goals_against}
+                        </StatNumber>
+                        <StatHelpText>
+                          Diff: {teamAnalytics.summary.goal_difference}
+                        </StatHelpText>
+                      </Stat>
+                    </SimpleGrid>
                   </CardBody>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <Heading size="md">Top Scorers</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <ChartContainer>
-                      <BarChart data={teamAnalytics.top_scorers}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="player" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="goals" fill="#8884d8" name="Goals" />
-                        <Bar dataKey="assists" fill="#82ca9d" name="Assists" />
-                      </BarChart>
-                    </ChartContainer>
-                  </CardBody>
-                </Card>
+                {teamAnalytics.performance && teamAnalytics.performance.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Points Progression</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Box height="300px">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={teamAnalytics.performance}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="match_date"
+                              tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                            />
+                            <YAxis />
+                            <Tooltip 
+                              labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                            />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="running_points"
+                              stroke="#8884d8"
+                              name="Total Points"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="average_points"
+                              stroke="#82ca9d"
+                              name="Average Points"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </CardBody>
+                  </Card>
+                )}
               </SimpleGrid>
             )}
           </TabPanel>
 
           <TabPanel>
-            {overview && isMounted && (
+            {overview?.area_stats && overview.area_stats.length > 0 && (
               <Box>
                 <Card>
                   <CardHeader>
@@ -276,17 +353,17 @@ function Analytics() {
                     </Text>
                   </CardHeader>
                   <CardBody p={0}>
-                    <Box height="800px" position="relative">
+                    <Box height="800px">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart margin={{ right: 200 }}>
+                        <PieChart>
                           <Pie
                             data={overview.area_stats}
                             dataKey="team_count"
                             nameKey="name"
-                            cx="45%"
+                            cx="50%"
                             cy="50%"
-                            outerRadius="85%"
-                            innerRadius="35%"
+                            outerRadius="90%"
+                            innerRadius="40%"
                             paddingAngle={2}
                             label={({
                               cx,
@@ -342,28 +419,11 @@ function Analytics() {
                             layout="vertical"
                             iconSize={12}
                             wrapperStyle={{
-                              position: 'absolute',
-                              right: 20,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              maxHeight: '70%',
-                              overflowY: 'auto',
-                              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                              borderRadius: '8px',
-                              padding: '12px',
-                              boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                              width: '180px'
+                              fontSize: '14px',
+                              paddingRight: '20px',
+                              right: 0,
+                              width: 'auto'
                             }}
-                            formatter={(value, entry) => (
-                              <span style={{ 
-                                color: '#333',
-                                fontSize: '13px',
-                                display: 'block',
-                                lineHeight: '1.4'
-                              }}>
-                                {`${value} (${overview.area_stats.find(stat => stat.name === value)?.team_count})`}
-                              </span>
-                            )}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -372,24 +432,19 @@ function Analytics() {
                 </Card>
 
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
-                  {overview.area_stats.map((stat, index) => {
-                    const percentage = overview.summary.total_teams > 0 
-                      ? ((stat.team_count / overview.summary.total_teams) * 100).toFixed(1) 
-                      : 0;
-                    return (
-                      <Card key={stat.name}>
-                        <CardBody>
-                          <Stat>
-                            <StatLabel>{stat.name}</StatLabel>
-                            <StatNumber>{stat.team_count}</StatNumber>
-                            <StatHelpText>
-                              {percentage}% of total teams ({overview.summary.total_teams})
-                            </StatHelpText>
-                          </Stat>
-                        </CardBody>
-                      </Card>
-                    );
-                  })}
+                  {overview.area_stats.map((stat) => (
+                    <Card key={stat.name}>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>{stat.name}</StatLabel>
+                          <StatNumber>{stat.team_count}</StatNumber>
+                          <StatHelpText>
+                            {((stat.team_count / overview.summary.total_teams) * 100).toFixed(1)}% of total teams
+                          </StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                  ))}
                 </SimpleGrid>
               </Box>
             )}

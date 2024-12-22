@@ -182,7 +182,7 @@ class PlayerSerializer(serializers.ModelSerializer):
 class AreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Area
-        fields = ['id', 'name', 'code', 'parent_area', 'parent_area_code']
+        fields = ['id', 'name', 'code', 'flag']
 
 class TeamAnalyticsSerializer(serializers.ModelSerializer):
     match_statistics = serializers.SerializerMethodField()

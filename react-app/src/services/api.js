@@ -118,10 +118,15 @@ const apiService = {
     },
 
     // Generic CRUD
-    async get(endpoint) {
+    get: async (endpoint) => {
         try {
             const response = await api.get(endpoint);
-            return response;
+            console.log('API Response from ' + endpoint + ':', response.status);
+            // Handle paginated responses
+            if (response.data && response.data.hasOwnProperty('results')) {
+                return response.data.results;
+            }
+            return response.data;
         } catch (error) {
             console.error('API Error:', error);
             throw error;
