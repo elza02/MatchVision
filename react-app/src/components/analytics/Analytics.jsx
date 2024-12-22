@@ -14,13 +14,13 @@ import {
   TabPanel,
   Stack,
   Text,
-  Progress,
   Spinner,
   useToast,
   Stat,
   StatLabel,
   StatNumber,
   StatHelpText,
+  Container,
 } from '@chakra-ui/react';
 import {
   LineChart,
@@ -40,6 +40,17 @@ import {
 import api from '../../services/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const CHART_HEIGHT = 400;
+const CHART_WIDTH = 800;
+const CHART_ASPECT = 2;
+
+const ChartContainer = ({ children }) => (
+  <Box width="100%" minH={CHART_HEIGHT}>
+    <ResponsiveContainer width="100%" height={CHART_HEIGHT} aspect={CHART_ASPECT} debounce={1}>
+      {children}
+    </ResponsiveContainer>
+  </Box>
+);
 
 function Analytics() {
   const [overview, setOverview] = useState(null);
@@ -47,7 +58,13 @@ function Analytics() {
   const [teams, setTeams] = useState([]);
   const [teamAnalytics, setTeamAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
 
   useEffect(() => {
     fetchOverview();
@@ -111,23 +128,23 @@ function Analytics() {
 
   if (loading) {
     return (
-      <Box p={4} display="flex" justifyContent="center" alignItems="center">
+      <Box p={4} display="flex" justifyContent="center" alignItems="center" height={CHART_HEIGHT}>
         <Spinner size="xl" />
       </Box>
     );
   }
 
   return (
-    <Box p={4}>
+    <Container maxW="container.xl" p={4}>
       <Tabs>
-        <TabList>
+        <TabList mb={4}>
           <Tab>Overview</Tab>
           <Tab>Team Analysis</Tab>
         </TabList>
 
         <TabPanels>
           <TabPanel>
-            {overview && (
+            {overview && isMounted && (
               <>
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={8}>
                   <Card>
@@ -157,23 +174,21 @@ function Analytics() {
                       <Heading size="md">Goals Trend</Heading>
                     </CardHeader>
                     <CardBody>
-                      <Box h="300px">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={overview.goals_trend}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="matchday" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Line
-                              type="monotone"
-                              dataKey="average_goals"
-                              stroke="#8884d8"
-                              name="Average Goals"
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </Box>
+                      <ChartContainer>
+                        <LineChart data={overview.goals_trend}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="matchday" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="average_goals"
+                            stroke="#8884d8"
+                            name="Average Goals"
+                          />
+                        </LineChart>
+                      </ChartContainer>
                     </CardBody>
                   </Card>
 
@@ -182,30 +197,28 @@ function Analytics() {
                       <Heading size="md">Teams by Area</Heading>
                     </CardHeader>
                     <CardBody>
-                      <Box h="300px">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={overview.area_stats}
-                              dataKey="team_count"
-                              nameKey="name"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={100}
-                              fill="#8884d8"
-                            >
-                              {overview.area_stats.map((entry, index) => (
-                                <Cell
-                                  key={`cell-${index}`}
-                                  fill={COLORS[index % COLORS.length]}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </Box>
+                      <ChartContainer>
+                        <PieChart>
+                          <Pie
+                            data={overview.area_stats}
+                            dataKey="team_count"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={120}
+                            fill="#8884d8"
+                          >
+                            {overview.area_stats.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={COLORS[index % COLORS.length]}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ChartContainer>
                     </CardBody>
                   </Card>
                 </SimpleGrid>
@@ -227,36 +240,34 @@ function Analytics() {
               </Select>
             </Box>
 
-            {teamAnalytics && (
+            {teamAnalytics && isMounted && (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <Card>
                   <CardHeader>
                     <Heading size="md">Points Progression</Heading>
                   </CardHeader>
                   <CardBody>
-                    <Box h="300px">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={teamAnalytics.performance}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="match_date" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Line
-                            type="monotone"
-                            dataKey="running_points"
-                            stroke="#8884d8"
-                            name="Total Points"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="average_points"
-                            stroke="#82ca9d"
-                            name="Average Points"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </Box>
+                    <ChartContainer>
+                      <LineChart data={teamAnalytics.performance}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="match_date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="running_points"
+                          stroke="#8884d8"
+                          name="Total Points"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="average_points"
+                          stroke="#82ca9d"
+                          name="Average Points"
+                        />
+                      </LineChart>
+                    </ChartContainer>
                   </CardBody>
                 </Card>
 
@@ -265,19 +276,17 @@ function Analytics() {
                     <Heading size="md">Top Scorers</Heading>
                   </CardHeader>
                   <CardBody>
-                    <Box h="300px">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={teamAnalytics.top_scorers}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="player" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="goals" fill="#8884d8" name="Goals" />
-                          <Bar dataKey="assists" fill="#82ca9d" name="Assists" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </Box>
+                    <ChartContainer>
+                      <BarChart data={teamAnalytics.top_scorers}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="player" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="goals" fill="#8884d8" name="Goals" />
+                        <Bar dataKey="assists" fill="#82ca9d" name="Assists" />
+                      </BarChart>
+                    </ChartContainer>
                   </CardBody>
                 </Card>
               </SimpleGrid>
@@ -285,7 +294,7 @@ function Analytics() {
           </TabPanel>
         </TabPanels>
       </Tabs>
-    </Box>
+    </Container>
   );
 }
 

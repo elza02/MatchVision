@@ -8,6 +8,7 @@ import Competitions from './components/competitions/Competitions';
 import Teams from './components/teams/Teams';
 import Players from './components/players/Players';
 import Matches from './components/matches/Matches';
+import Analytics from './components/analytics/Analytics';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/teams/*" element={<Teams />} />
             <Route path="/players/*" element={<Players />} />
             <Route path="/matches/*" element={<Matches />} />
+            <Route path="/analytics" element={<Analytics />} />
           </Routes>
         </Layout>
       </Router>
