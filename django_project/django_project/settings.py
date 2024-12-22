@@ -33,13 +33,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']  # For development only
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://172.23.224.1:5174",
-    "http://192.168.1.5:5174"
-]
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',

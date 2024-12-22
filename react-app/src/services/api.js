@@ -9,7 +9,7 @@ const api = axios.create({
         'Accept': 'application/json',
     },
     timeout: 30000,
-    withCredentials: true,
+    withCredentials: false,  // Changed to false since we're using CORS_ALLOW_ALL_ORIGINS
 });
 
 // Request Interceptor
@@ -45,6 +45,7 @@ api.interceptors.response.use(
         const message =
             error.response.data?.message ||
             error.response.data?.detail ||
+            error.response.data?.error ||
             'An unexpected error occurred. Please try again.';
         return Promise.reject({
             message,
@@ -95,8 +96,26 @@ const apiService = {
     getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
     // Analytics
-    getAnalyticsOverview: () => api.get('/analytics/overview/'),
-    getTeamAnalytics: (teamId) => api.get(`/analytics/team/${teamId}/`),
+    getAnalyticsOverview: async () => {
+        try {
+            const response = await api.get('/analytics/overview/');
+            console.log('Analytics Overview Response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching analytics overview:', error);
+            throw error;
+        }
+    },
+    getTeamAnalytics: async (teamId) => {
+        try {
+            const response = await api.get(`/analytics/team/${teamId}/`);
+            console.log('Team Analytics Response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching team analytics:', error);
+            throw error;
+        }
+    },
 
     // Generic CRUD
     async get(endpoint) {

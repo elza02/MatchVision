@@ -246,60 +246,48 @@ class MatchPredictionsView(APIView):
 class AnalyticsOverviewView(APIView):
     def get(self, request):
         try:
-            # Get overall statistics
-            total_matches = Match.objects.filter(status='FINISHED').count()
-            total_goals = Match.objects.filter(status='FINISHED').aggregate(
-                total=Sum(F('home_team_score') + F('away_team_score'))
-            )['total'] or 0
+            # Get all matches
+            matches = Match.objects.all()
+            total_matches = matches.count()
+            total_goals = sum(match.home_team_score + match.away_team_score for match in matches)
             
-            # Get goals per matchday trend
-            matches = Match.objects.filter(status='FINISHED').order_by('match_date')
-            goals_trend = []
-            running_total = 0
-            match_count = 0
+            # Calculate goals trend
+            goals_trend = self.calculate_goals_trend(matches)
             
-            for match in matches:
-                match_count += 1
-                match_goals = (match.home_team_score or 0) + (match.away_team_score or 0)
-                running_total += match_goals
-                goals_trend.append({
-                    'matchday': match_count,
-                    'average_goals': round(running_total / match_count, 2),
-                    'date': match.match_date
+            # Calculate area statistics
+            teams = Team.objects.all()
+            total_teams = teams.count()  # Get total number of teams
+            area_stats = []
+            area_counts = {}
+            
+            for team in teams:
+                area = team.area
+                if area in area_counts:
+                    area_counts[area] += 1
+                else:
+                    area_counts[area] = 1
+            
+            for area, count in area_counts.items():
+                area_stats.append({
+                    'name': area,
+                    'team_count': count
                 })
-
-            # Get team performance by area
-            area_stats = Area.objects.annotate(
-                team_count=Count('team', distinct=True),
-                total_goals=Sum(
-                    Case(
-                        When(team__home_matches__status='FINISHED', 
-                             then=F('team__home_matches__home_team_score')),
-                        default=0
-                    ) +
-                    Case(
-                        When(team__away_matches__status='FINISHED',
-                             then=F('team__away_matches__away_team_score')),
-                        default=0
-                    )
-                )
-            ).values('name', 'team_count', 'total_goals')
-
+            
+            # Sort area_stats by team_count in descending order
+            area_stats = sorted(area_stats, key=lambda x: x['team_count'], reverse=True)
+            
             return Response({
                 'summary': {
                     'total_matches': total_matches,
                     'total_goals': total_goals,
-                    'average_goals_per_match': round(total_goals / total_matches if total_matches > 0 else 0, 2)
+                    'average_goals_per_match': round(total_goals / total_matches, 2) if total_matches > 0 else 0,
+                    'total_teams': total_teams  # Add total teams to the response
                 },
-                'goals_trend': goals_trend[-50:] if goals_trend else [],  # Last 50 matches
+                'goals_trend': goals_trend,
                 'area_stats': area_stats
             })
         except Exception as e:
-            print(f"Error in AnalyticsOverviewView: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch analytics data'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': str(e)}, status=500)
 
 class TeamAnalyticsView(APIView):
     def get(self, request, team_id):
