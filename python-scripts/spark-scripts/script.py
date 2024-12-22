@@ -8,9 +8,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration
-MONGO_URI = "mongodb://root:houcine@mongodb-football-2:27017/"
+# mongodb configuration
+MONGO_URI = "mongodb://root:houcine@mongodb-football:27017/"
 DATABASE_NAME = "football_data"
+
+# kafka configuration
 KAFKA_BROKER = "kafka:29092"
 
 # Topic configurations

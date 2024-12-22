@@ -59,6 +59,17 @@ services:
     networks:
       - app-network
 
+  python-scripts-pooling:
+    build: ./python-scripts/pooling
+    container_name: python-scripts-pooling
+    volumes:
+      - ./python-scripts/pooling:/app
+    depends_on:
+      - mysql-db
+      - mongodb
+    networks:
+      - app-network
+
   mysql-db:
     image: mysql:8.0
     container_name: mysql-football

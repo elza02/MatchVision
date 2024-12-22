@@ -83,7 +83,7 @@ class Competition(models.Model):
 
 class Match(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
-    match_date = models.DateTimeField(null=True)
+    match_date = models.DateField(null=True)
     status = models.CharField(max_length=20, null=True, default='')
     stage = models.CharField(max_length=50, null=True, default='')
     home_team = models.ForeignKey(Team, related_name='home_matches', on_delete=models.CASCADE, null=True)
