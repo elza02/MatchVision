@@ -8,7 +8,6 @@ const menuItems = [
   { name: 'Teams', icon: FI.FiUsers, path: '/teams' },
   { name: 'Matches', icon: FI.FiCalendar, path: '/matches' },
   { name: 'Players', icon: FI.FiUser, path: '/players' },
-  { name: 'Analytics', icon: FI.FiPieChart, path: '/analytics' },
 ];
 
 function Sidebar() {

@@ -1,265 +1,237 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Card,
-  CardBody,
-  Stack,
-  Heading,
-  Text,
-  SimpleGrid,
-  Select,
+  Container,
+  VStack,
   HStack,
-  Badge,
-  Button,
-  useDisclosure,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Progress,
+  Text,
+  Image,
+  Heading,
+  useColorModeValue,
   Spinner,
-  useToast,
-  Center,
   Alert,
   AlertIcon,
+  Select,
+  Button,
+  Grid,
+  GridItem,
+  Badge,
+  Input,
+  Stack,
+  Card,
+  CardBody,
+  Divider,
+  IconButton,
 } from '@chakra-ui/react';
-import api from '../../services/api';
-import { pollingService } from '../../services/polling';
-import MatchDetail from './MatchDetail';
-import InfiniteScroll from 'react-infinite-scroll-component';
+import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import apiService from '../../services/api';
 
-function Matches() {
+const Matches = () => {
   const [matches, setMatches] = useState([]);
-  const [competitions, setCompetitions] = useState([]);
-  const [selectedCompetition, setSelectedCompetition] = useState('');
-  const [selectedMatch, setSelectedMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const toast = useToast();
-  const PAGE_SIZE = 12;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filters, setFilters] = useState({
+    status: '',
+    competition: '',
+    team: '',
+    dateFrom: '',
+    dateTo: '',
+  });
 
-  const fetchData = useCallback(async (pageNum = 1, append = false) => {
-    try {
-      setError(null);
-      if (pageNum === 1) {
-        setLoading(true);
-        setHasMore(true);
-      } else {
-        setIsLoadingMore(true);
-      }
-
-      // Fetch competitions if needed
-      if (!competitions || competitions.length === 0) {
-        try {
-          const competitionsResponse = await axios.get(`http://localhost:8001/api/competitions`);
-          const competitionsData = competitionsResponse.data;
-          setCompetitions(competitionsData);
-          if (!selectedCompetition && competitionsData.length > 0) {
-            setSelectedCompetition(competitionsData[0].id.toString());
-          }
-        } catch (error) {
-          console.error('Error fetching competitions:', error);
-        }
-      }
-
-      // Fetch matches with pagination
-      const matchesUrl = `/matches/?page=${pageNum}&page_size=${PAGE_SIZE}${
-        selectedCompetition ? `&competition=${selectedCompetition}` : ''
-      }`;
-      
-      const matchesResponse = await api.get(matchesUrl);
-      const matchesData = matchesResponse.data;
-      console.log(matchesData)
-      
-      // Validate response data
-      if (!matchesData || typeof matchesData !== 'object') {
-        throw new Error('Invalid response data');
-      }
-
-      // Extract results and pagination info
-      const results = Array.isArray(matchesData.results) ? matchesData.results : [];
-      const hasNextPage = !!matchesData.next;
-      
-      // Update matches state based on whether we're appending or replacing
-      setMatches(prev => append ? [...prev, ...results] : results);
-      setHasMore(hasNextPage);
-      setPage(pageNum);
-
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch data';
-      setError(errorMessage);
-      toast({
-        title: 'Error',
-        description: errorMessage,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-      setHasMore(false);
-    } finally {
-      setLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [selectedCompetition, competitions, toast]);
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   useEffect(() => {
-    fetchData(1, false);
-  }, [fetchData]);
+    fetchMatches();
+  }, [currentPage, filters]);
 
-  const handleCompetitionChange = (event) => {
-    setSelectedCompetition(event.target.value);
-    setPage(1);
-    setMatches([]);
-    setHasMore(true);
-    fetchData(1, false);
+  const fetchMatches = async () => {
+    try {
+      setLoading(true);
+      let url = `/matches/?page=${currentPage}`;
+      
+      // Add filters to URL
+      if (filters.status) url += `&status=${filters.status}`;
+      if (filters.competition) url += `&competition=${filters.competition}`;
+      if (filters.team) url += `&team=${filters.team}`;
+      if (filters.dateFrom) url += `&date_from=${filters.dateFrom}`;
+      if (filters.dateTo) url += `&date_to=${filters.dateTo}`;
+
+      const response = await apiService.get(url);
+      setMatches(response.data.results);
+      setTotalPages(Math.ceil(response.data.count / 20)); // 20 is page_size from backend
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      setError('Failed to load matches. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadMore = useCallback(() => {
-    if (!loading && !isLoadingMore && hasMore) {
-      fetchData(page + 1, true);
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
     }
-  }, [loading, isLoadingMore, hasMore, page, fetchData]);
+  };
 
-  const handleMatchClick = useCallback((match) => {
-    setSelectedMatch(match);
-    onOpen();
-  }, [onOpen]);
+  const getStatusColor = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'SCHEDULED': return 'blue';
+      case 'LIVE': return 'green';
+      case 'FINISHED': return 'gray';
+      case 'POSTPONED': return 'red';
+      default: return 'gray';
+    }
+  };
 
-  if (loading && (!matches || matches.length === 0)) {
+  if (loading) {
     return (
-      <Center h="calc(100vh - 100px)">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
+      <Box display="flex" justifyContent="center" alignItems="center" minH="500px">
+        <Spinner size="xl" />
+      </Box>
     );
   }
 
-  if (error && (!matches || matches.length === 0)) {
+  if (error) {
     return (
-      <Alert status="error" variant="subtle" flexDirection="column" alignItems="center" justifyContent="center" textAlign="center" height="200px">
-        <AlertIcon boxSize="40px" mr={0} />
-        <Text mt={4} mb={1} fontSize="lg">
-          Error loading matches
-        </Text>
-        <Text mb={4}>{error}</Text>
-        <Button onClick={() => fetchData(1, false)} colorScheme="red" variant="outline">
-          Try Again
-        </Button>
+      <Alert status="error" mt={4}>
+        <AlertIcon />
+        {error}
       </Alert>
     );
   }
 
   return (
-    <Box p={4}>
-      <Stack spacing={4}>
-        <HStack justify="space-between" align="center">
-          <Heading size="lg">Matches</Heading>
-          <Select
-            placeholder="All Competitions"
-            value={selectedCompetition}
-            onChange={handleCompetitionChange}
-            maxW="300px"
-            isDisabled={loading}
-          >
-            {competitions?.map(competition => (
-              <option key={competition.id} value={competition.id}>
-                {competition.name}
-              </option>
-            ))}
-          </Select>
-        </HStack>
+    <Container maxW="container.xl" py={5}>
+      <VStack spacing={6} align="stretch">
+        <Heading size="lg">Matches</Heading>
 
-        <InfiniteScroll
-          dataLength={matches?.length || 0}
-          next={loadMore}
-          hasMore={hasMore}
-          loader={
-            <Center p={4}>
-              <Spinner />
-            </Center>
-          }
-          endMessage={
-            matches?.length > 0 ? (
-              <Text textAlign="center" color="gray.500" p={4}>
-                No more matches to load
-              </Text>
-            ) : null
-          }
-          scrollThreshold={0.8}
-        >
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-            {matches?.map(match => (
-              <Card 
-                key={match.id} 
-                cursor="pointer" 
-                onClick={() => handleMatchClick(match)}
-                _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
-                transition="all 0.2s"
-              > 
+        {/* Filters */}
+        <Stack direction={{ base: 'column', md: 'row' }} spacing={4}>
+          <Select
+            placeholder="Status"
+            value={filters.status}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+          >
+            <option value="SCHEDULED">Scheduled</option>
+            <option value="LIVE">Live</option>
+            <option value="FINISHED">Finished</option>
+            <option value="POSTPONED">Postponed</option>
+          </Select>
+          <Input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+            placeholder="From Date"
+          />
+          <Input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+            placeholder="To Date"
+          />
+        </Stack>
+
+        {/* Matches Grid */}
+        <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
+          {matches.map((match) => (
+            <GridItem key={match.id}>
+              <Card
+                bg={bgColor}
+                borderWidth="1px"
+                borderColor={borderColor}
+                borderRadius="lg"
+                overflow="hidden"
+              >
                 <CardBody>
-                  <Stack spacing={4}>
-                    <Badge 
-                      colorScheme={match.status === 'FINISHED' ? 'green' : 'yellow'} 
-                      alignSelf="start"
-                    >
-                      {match.status || 'Unknown'}
-                    </Badge>
-                    <Stack spacing={2}>
-                      <Text fontWeight="bold">{match.home_team || 'Unknown Team'}</Text>
-                      <Text fontSize="sm" color="gray.500">vs</Text>
-                      <Text fontWeight="bold">{match.away_team || 'Unknown Team'}</Text>
-                    </Stack>
-                    <Text color="gray.500">
-                      {match.match_date ? new Date(match.match_date).toLocaleDateString() : 'Date not available'}
-                    </Text>
-                    {(match.home_team_score !== null && match.away_team_score !== null) ? (
-                      <Text fontWeight="bold">
-                        {match.home_team_score} - {match.away_team_score}
+                  <VStack spacing={4}>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontSize="sm" color="gray.500">
+                        {new Date(match.match_date).toLocaleDateString()}
                       </Text>
-                    ) : (
-                      <Text color="gray.500">Score not available</Text>
-                    )}
-                  </Stack>
+                      <Badge colorScheme={getStatusColor(match.status)}>
+                        {match.status}
+                      </Badge>
+                    </HStack>
+
+                    <Text fontWeight="bold" color="gray.500">
+                      {match.competition_name} - {match.stage}
+                    </Text>
+
+                    <Grid templateColumns="1fr auto 1fr" gap={4} width="100%" alignItems="center">
+                      {/* Home Team */}
+                      <VStack>
+                        <Image
+                          src={match.home_team_crest}
+                          alt={match.home_team_name}
+                          boxSize="50px"
+                          objectFit="contain"
+                          fallbackSrc="https://via.placeholder.com/50"
+                        />
+                        <Text fontWeight="bold" textAlign="center">
+                          {match.home_team_name}
+                        </Text>
+                      </VStack>
+
+                      {/* Score */}
+                      <VStack>
+                        <Text fontSize="2xl" fontWeight="bold">
+                          {match.status === 'FINISHED' || match.status === 'LIVE'
+                            ? `${match.home_team_score} - ${match.away_team_score}`
+                            : 'vs'}
+                        </Text>
+                      </VStack>
+
+                      {/* Away Team */}
+                      <VStack>
+                        <Image
+                          src={match.away_team_crest}
+                          alt={match.away_team_name}
+                          boxSize="50px"
+                          objectFit="contain"
+                          fallbackSrc="https://via.placeholder.com/50"
+                        />
+                        <Text fontWeight="bold" textAlign="center">
+                          {match.away_team_name}
+                        </Text>
+                      </VStack>
+                    </Grid>
+                  </VStack>
                 </CardBody>
               </Card>
-            ))}
-          </SimpleGrid>
-        </InfiniteScroll>
-      </Stack>
+            </GridItem>
+          ))}
+        </Grid>
 
-      {selectedMatch && (
-        <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside">
-          <ModalOverlay />
-          <ModalContent maxW="1000px">
-            <ModalHeader>
-              {selectedMatch.home_team} vs {selectedMatch.away_team}
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody pb={6}>
-              <MatchDetail match={selectedMatch} />
-            </ModalBody>
-          </ModalContent>
-        </Modal>
-      )}
-    </Box>
+        {/* Pagination */}
+        <HStack justify="center" spacing={4}>
+          <IconButton
+            icon={<ChevronLeftIcon />}
+            onClick={() => handlePageChange(currentPage - 1)}
+            isDisabled={currentPage === 1}
+            aria-label="Previous page"
+          />
+          <Text>
+            Page {currentPage} of {totalPages}
+          </Text>
+          <IconButton
+            icon={<ChevronRightIcon />}
+            onClick={() => handlePageChange(currentPage + 1)}
+            isDisabled={currentPage === totalPages}
+            aria-label="Next page"
+          />
+        </HStack>
+      </VStack>
+    </Container>
   );
-}
+};
 
 export default Matches;

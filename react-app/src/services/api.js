@@ -63,30 +63,24 @@ const apiService = {
     // Matches
     getMatches: () => api.get('/matches/'),
     getMatchDetails: (id) => api.get(`/matches/${id}/`),
+    getMatchAnalytics: (id) => api.get(`/analytics/match/${id}/`),
 
     // Teams
     getTeams: () => api.get('/teams/'),
     getTeamDetails: (id) => api.get(`/teams/${id}/`),
+    getTeamAnalytics: (id) => api.get(`/analytics/team/${id}/`),
+    getTeamComparison: (team1Id, team2Id) => 
+        api.get(`/analytics/team-comparison/${team1Id}/${team2Id}/`),
 
     // Players
     getPlayers: () => api.get('/players/'),
     getPlayerDetails: (id) => api.get(`/players/${id}/`),
+    getPlayerAnalytics: (id) => api.get(`/analytics/player/${id}/`),
 
     // Competitions
     getCompetitions: () => api.get('/competitions/'),
     getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
-
-    // Predictions
-    getMatchPredictions: (matchId) => api.get(`/match-predictions/?match_id=${matchId}`),
-
-    // Analytics
-    getCompetitionAnalytics: (competitionId) =>
-        api.get(`/analytics/competition/${competitionId}/`),
-    getTeamAnalytics: (teamId) => api.get(`/analytics/team/${teamId}/`),
-    getPlayerAnalytics: (playerId) => api.get(`/analytics/player/${playerId}/`),
-
-    // Top Scorers
-    getTopScorers: () => api.get('/top-scorers/'),
+    getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
     // Generic CRUD
     get: (endpoint) => api.get(endpoint),

@@ -1,289 +1,292 @@
-from django.db.models import Q, F, Count, Avg, Sum, Case, When, FloatField
-from django.db.models.functions import Coalesce
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.db import transaction
-
-from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
+from .models import Team, Competition, Match, TopScorer, Player
+from .serializers import (
+    TeamSerializer,
+    CompetitionSerializer,
+    MatchSerializer,
+    TopScorerSerializer,
+    PlayerSerializer,
+    TeamAnalyticsSerializer,
+    CompetitionAnalyticsSerializer,
+    MatchAnalyticsSerializer,
+    PlayerAnalyticsSerializer
+)
+import django.db.models
+from django.db.models import Sum, Count, Avg, F, Q
+from django.db import connection
 
-from django_filters.rest_framework import DjangoFilterBackend
+class DashboardStatsView(APIView):
+    def get(self, request):
+        try:
+            # Get total counts only
+            total_teams = Team.objects.count()
+            total_matches = Match.objects.count()
+            total_players = Player.objects.count()
 
-from .models import Team, Competition, Match, Player, TopScorer, Standing, Coach, Area
-from .serializers import (TeamSerializer, CompetitionSerializer, MatchSerializer, 
-                        TopScorerSerializer)
+            response_data = {
+                "total_teams": total_teams,
+                "total_matches": total_matches,
+                "total_players": total_players
+            }
 
-import logging
-logger = logging.getLogger(__name__)
+            print("Stats response data:", response_data)
+            return Response(response_data)
+        except Exception as e:
+            print(f"Error in DashboardStatsView: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-class TeamViewSet(viewsets.ModelViewSet):
+class DashboardMatchesView(APIView):
+    def get(self, request):
+        try:
+            recent_matches = Match.objects.select_related(
+                'home_team', 'away_team', 'competition'
+            ).order_by('-match_date')[:5]
+
+            response_data = MatchSerializer(recent_matches, many=True).data
+            print(f"Matches response data: {len(response_data)} matches")
+            return Response(response_data)
+        except Exception as e:
+            print(f"Error in DashboardMatchesView: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class DashboardScorersView(APIView):
+    def get(self, request):
+        try:
+            top_scorers = TopScorer.objects.select_related(
+                'player', 'player__team', 'competition'
+            ).filter(
+                player__isnull=False,
+                goals__gt=0
+            ).order_by('-goals')[:10]
+
+            response_data = TopScorerSerializer(top_scorers, many=True).data
+            print(f"Scorers response data: {len(response_data)} scorers")
+            return Response(response_data)
+        except Exception as e:
+            print(f"Error in DashboardScorersView: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class MatchPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class MatchListView(APIView):
+    pagination_class = MatchPagination
+
+    def get(self, request):
+        try:
+            # Get query parameters
+            status = request.query_params.get('status')
+            competition = request.query_params.get('competition')
+            team = request.query_params.get('team')
+            date_from = request.query_params.get('date_from')
+            date_to = request.query_params.get('date_to')
+            
+            # Start with all matches
+            matches = Match.objects.all().order_by('-match_date')
+            
+            # Apply filters
+            if status:
+                matches = matches.filter(status=status)
+            if competition:
+                matches = matches.filter(competition_id=competition)
+            if team:
+                matches = matches.filter(Q(home_team_id=team) | Q(away_team_id=team))
+            if date_from:
+                matches = matches.filter(match_date__gte=date_from)
+            if date_to:
+                matches = matches.filter(match_date__lte=date_to)
+
+            # Get paginator
+            paginator = self.pagination_class()
+            paginated_matches = paginator.paginate_queryset(matches, request)
+            
+            # Serialize the paginated data
+            serializer = MatchSerializer(paginated_matches, many=True)
+            
+            # Return paginated response
+            return paginator.get_paginated_response(serializer.data)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+class MatchDetailView(generics.RetrieveAPIView):
+    queryset = Match.objects.all()
+    serializer_class = MatchSerializer
+
+class TeamListView(generics.ListAPIView):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    search_fields = ['name', 'venue']
-    
-    @action(detail=True)
-    def statistics(self, request, pk=None):
-        try:
-            team = self.get_object()
-            
-            # Get matches
-            home_matches = Match.objects.filter(home_team=team)
-            away_matches = Match.objects.filter(away_team=team)
-            
-            # Calculate home performance
-            home_stats = home_matches.aggregate(
-                matches_played=Count('id'),
-                goals_scored=Coalesce(Sum('home_team_score'), 0),
-                goals_conceded=Coalesce(Sum('away_team_score'), 0),
-                wins=Count('id', filter=Q(home_team_score__gt=F('away_team_score'))),
-                draws=Count('id', filter=Q(home_team_score=F('away_team_score'))),
-                losses=Count('id', filter=Q(home_team_score__lt=F('away_team_score')))
-            )
-            
-            # Calculate away performance
-            away_stats = away_matches.aggregate(
-                matches_played=Count('id'),
-                goals_scored=Coalesce(Sum('away_team_score'), 0),
-                goals_conceded=Coalesce(Sum('home_team_score'), 0),
-                wins=Count('id', filter=Q(away_team_score__gt=F('home_team_score'))),
-                draws=Count('id', filter=Q(away_team_score=F('home_team_score'))),
-                losses=Count('id', filter=Q(away_team_score__lt=F('home_team_score')))
-            )
-            
-            # Get top scorers from TopScorer model
-            top_scorers = TopScorer.objects.filter(team=team)\
-                .select_related('player')\
-                .order_by('-goals', '-assists')[:5]
-            
-            # Get current standings
-            current_standing = Standing.objects.filter(team=team)\
-                .select_related('competition')\
-                .order_by('-season')\
-                .first()
-            
-            # Get coach information
-            coach_info = None
-            if team.coach:
-                coach_info = {
-                    'name': team.coach.name,
-                    'nationality': team.coach.nationality,
-                    'contract_start': team.coach.contract_start_date,
-                    'contract_end': team.coach.contract_end_date
-                }
-            
-            stats = {
-                'team_info': {
-                    'name': team.name,
-                    'founded': team.founded,
-                    'venue': team.venue,
-                    'colors': team.club_colors,
-                    'coach': coach_info
-                },
-                'overall': {
-                    'matches_played': home_stats['matches_played'] + away_stats['matches_played'],
-                    'wins': home_stats['wins'] + away_stats['wins'],
-                    'draws': home_stats['draws'] + away_stats['draws'],
-                    'losses': home_stats['losses'] + away_stats['losses'],
-                    'goals_scored': home_stats['goals_scored'] + away_stats['goals_scored'],
-                    'goals_conceded': home_stats['goals_conceded'] + away_stats['goals_conceded'],
-                    'goal_difference': (home_stats['goals_scored'] + away_stats['goals_scored']) - 
-                                     (home_stats['goals_conceded'] + away_stats['goals_conceded']),
-                    'points': (home_stats['wins'] + away_stats['wins']) * 3 + 
-                             (home_stats['draws'] + away_stats['draws'])
-                },
-                'home_performance': home_stats,
-                'away_performance': away_stats,
-                'top_scorers': [{
-                    'player_name': scorer.player.name,
-                    'goals': scorer.goals,
-                    'assists': scorer.assists,
-                    'penalties': scorer.penalties,
-                    'matches_played': scorer.played_matches
-                } for scorer in top_scorers],
-                'current_standing': {
-                    'position': current_standing.position if current_standing else None,
-                    'points': current_standing.points if current_standing else None,
-                    'competition': current_standing.competition.name if current_standing else None,
-                    'form': current_standing.form if current_standing else None
-                } if current_standing else None
-            }
-            
-            return Response(stats)
-            
-        except Exception as e:
-            logger.error(f"Error in team statistics: {str(e)}")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
-class CompetitionViewSet(viewsets.ModelViewSet):
+class TeamDetailView(generics.RetrieveAPIView):
+    queryset = Team.objects.all()
+    serializer_class = TeamSerializer
+
+class PlayerListView(generics.ListAPIView):
+    queryset = Player.objects.all()
+    serializer_class = PlayerSerializer
+
+class PlayerDetailView(generics.RetrieveAPIView):
+    queryset = Player.objects.all()
+    serializer_class = PlayerSerializer
+
+class CompetitionListView(generics.ListAPIView):
     queryset = Competition.objects.all()
     serializer_class = CompetitionSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    search_fields = ['name']
-    
-    @action(detail=True)
-    def standings(self, request, pk=None):
+
+class CompetitionDetailView(generics.RetrieveAPIView):
+    queryset = Competition.objects.all()
+    serializer_class = CompetitionSerializer
+
+class MatchPredictionsView(APIView):
+    def get(self, request):
+        match_id = request.query_params.get('match_id')
+        # Mocked predictions; replace with actual logic
+        predictions = {
+            "match_id": match_id,
+            "home_win_probability": 0.45,
+            "draw_probability": 0.30,
+            "away_win_probability": 0.25,
+        }
+        return Response(predictions)
+
+class CompetitionAnalyticsView(APIView):
+    def get(self, request, competition_id):
         try:
-            competition = self.get_object()
-            season = request.query_params.get('season', None)
-            
-            standings = Standing.objects.filter(
-                competition=competition,
-                season=season if season else competition.area.name
-            ).select_related('team').order_by('position')
-            
-            standings_data = [{
-                'position': standing.position,
-                'team': {
-                    'name': standing.team.name,
-                    'crest': standing.team.crest
-                },
-                'played': standing.played_games,
-                'won': standing.won,
-                'drawn': standing.draw,
-                'lost': standing.lost,
-                'goals_for': standing.goals_for,
-                'goals_against': standing.goals_against,
-                'goal_difference': standing.goal_difference,
-                'points': standing.points,
-                'form': list(standing.form) if standing.form else []
-            } for standing in standings]
-            
-            return Response(standings_data)
-            
-        except Exception as e:
-            logger.error(f"Error in competition standings: {str(e)}")
+            competition = Competition.objects.get(id=competition_id)
+            serializer = CompetitionAnalyticsSerializer(competition)
+            return Response(serializer.data)
+        except Competition.DoesNotExist:
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=True)
-    def top_scorers(self, request, pk=None):
-        try:
-            competition = self.get_object()
-            season = request.query_params.get('season', None)
-            
-            scorers = TopScorer.objects.filter(
-                competition=competition,
-                season=season if season else competition.area.name
-            ).select_related('player', 'team').order_by('-goals', '-assists')[:10]
-            
-            scorers_data = [{
-                'player': {
-                    'name': scorer.player.name,
-                    'nationality': scorer.player.nationality,
-                    'position': scorer.player.position
-                },
-                'team': {
-                    'name': scorer.team.name,
-                    'crest': scorer.team.crest
-                },
-                'stats': {
-                    'matches_played': scorer.played_matches,
-                    'goals': scorer.goals,
-                    'assists': scorer.assists,
-                    'penalties': scorer.penalties
-                }
-            } for scorer in scorers]
-            
-            return Response(scorers_data)
-            
-        except Exception as e:
-            logger.error(f"Error in competition top scorers: {str(e)}")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Competition not found"},
+                status=status.HTTP_404_NOT_FOUND
             )
 
-class MatchViewSet(viewsets.ModelViewSet):
-    queryset = Match.objects.select_related('home_team', 'away_team', 'competition').all()
-    serializer_class = MatchSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['competition', 'status', 'season']
-    search_fields = ['home_team__name', 'away_team__name']
-    pagination_class = PageNumberPagination
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        competition_id = self.request.query_params.get('competition', None)
-        
-        if competition_id:
-            queryset = queryset.filter(competition_id=competition_id)
-        
-        return queryset.order_by('-match_date')
-    
-    @action(detail=True)
-    def match_analysis(self, request, pk=None):
+class TeamAnalyticsView(APIView):
+    def get(self, request, team_id):
         try:
-            match = self.get_object()
+            team = Team.objects.get(id=team_id)
+            serializer = TeamAnalyticsSerializer(team)
+            return Response(serializer.data)
+        except Team.DoesNotExist:
+            return Response(
+                {"error": "Team not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+class MatchAnalyticsView(APIView):
+    def get(self, request, match_id):
+        try:
+            match = Match.objects.get(id=match_id)
+            serializer = MatchAnalyticsSerializer(match)
+            return Response(serializer.data)
+        except Match.DoesNotExist:
+            return Response(
+                {"error": "Match not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+class PlayerAnalyticsView(APIView):
+    def get(self, request, player_id):
+        try:
+            player = Player.objects.get(id=player_id)
+            serializer = PlayerAnalyticsSerializer(player)
+            return Response(serializer.data)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+class TeamComparisonView(APIView):
+    def get(self, request, team1_id, team2_id):
+        try:
+            team1 = Team.objects.get(id=team1_id)
+            team2 = Team.objects.get(id=team2_id)
             
-            # Get head to head history
+            # Head-to-head matches
             h2h_matches = Match.objects.filter(
-                Q(home_team=match.home_team, away_team=match.away_team) |
-                Q(home_team=match.away_team, away_team=match.home_team)
-            ).order_by('-match_date')[:5]
+                Q(home_team=team1, away_team=team2) |
+                Q(home_team=team2, away_team=team1)
+            ).order_by('-match_date')
             
-            # Get team standings
-            home_standing = Standing.objects.filter(
-                team=match.home_team,
-                competition=match.competition,
-                season=match.season
-            ).first()
+            # Calculate head-to-head stats
+            team1_wins = 0
+            team2_wins = 0
+            draws = 0
             
-            away_standing = Standing.objects.filter(
-                team=match.away_team,
-                competition=match.competition,
-                season=match.season
-            ).first()
+            for match in h2h_matches:
+                if match.home_team_score > match.away_team_score:
+                    if match.home_team == team1:
+                        team1_wins += 1
+                    else:
+                        team2_wins += 1
+                elif match.home_team_score < match.away_team_score:
+                    if match.away_team == team1:
+                        team1_wins += 1
+                    else:
+                        team2_wins += 1
+                else:
+                    draws += 1
             
-            analysis = {
-                'match_details': {
-                    'date': match.match_date,
-                    'competition': match.competition.name,
-                    'status': match.status,
-                    'stage': match.stage,
-                    'score': {
-                        'home': match.home_team_score,
-                        'away': match.away_team_score
+            # Get recent form for both teams
+            team1_form = TeamAnalyticsSerializer().get_form_analysis(team1)
+            team2_form = TeamAnalyticsSerializer().get_form_analysis(team2)
+            
+            # Get top scorers for both teams
+            team1_scorers = TopScorer.objects.filter(team=team1).order_by('-goals')[:5]
+            team2_scorers = TopScorer.objects.filter(team=team2).order_by('-goals')[:5]
+            
+            return Response({
+                'head_to_head': {
+                    'total_matches': len(h2h_matches),
+                    f'{team1.name}_wins': team1_wins,
+                    f'{team2.name}_wins': team2_wins,
+                    'draws': draws,
+                    'recent_matches': MatchSerializer(h2h_matches[:5], many=True).data
+                },
+                'team_comparison': {
+                    team1.name: {
+                        'form': team1_form,
+                        'top_scorers': [
+                            {
+                                'name': scorer.player.name,
+                                'goals': scorer.goals,
+                                'assists': scorer.assists
+                            } for scorer in team1_scorers
+                        ]
+                    },
+                    team2.name: {
+                        'form': team2_form,
+                        'top_scorers': [
+                            {
+                                'name': scorer.player.name,
+                                'goals': scorer.goals,
+                                'assists': scorer.assists
+                            } for scorer in team2_scorers
+                        ]
                     }
-                },
-                'home_team': {
-                    'name': match.home_team.name,
-                    'standing': {
-                        'position': home_standing.position if home_standing else None,
-                        'points': home_standing.points if home_standing else None,
-                        'form': list(home_standing.form) if home_standing and home_standing.form else []
-                    } if home_standing else None
-                },
-                'away_team': {
-                    'name': match.away_team.name,
-                    'standing': {
-                        'position': away_standing.position if away_standing else None,
-                        'points': away_standing.points if away_standing else None,
-                        'form': list(away_standing.form) if away_standing and away_standing.form else []
-                    } if away_standing else None
-                },
-                'head_to_head': [{
-                    'date': h2h.match_date,
-                    'home_team': h2h.home_team.name,
-                    'away_team': h2h.away_team.name,
-                    'score': {
-                        'home': h2h.home_team_score,
-                        'away': h2h.away_team_score
-                    }
-                } for h2h in h2h_matches]
-            }
-            
-            return Response(analysis)
-            
+                }
+            })
+        except Team.DoesNotExist:
+            return Response(
+                {"error": "One or both teams not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            logger.error(f"Error in match analysis: {str(e)}")
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -46,41 +46,53 @@ class PollingService {
                 const response = await apiService.get(endpoint);
                 this.retryCount.set(endpoint, 0); // Reset retry count on success
 
-                // Transform response data based on endpoint
-                const transformedData = this.transformResponseData(endpoint, response.data);
-                
+                // Notify all subscribers
                 const subscribers = this.subscribers.get(endpoint);
                 if (subscribers) {
-                    subscribers.forEach(callback => callback(transformedData, null));
+                    subscribers.forEach(callback => {
+                        try {
+                            callback(response.data);
+                        } catch (error) {
+                            console.error(`Error in subscriber callback for ${endpoint}:`, error);
+                        }
+                    });
                 }
             } catch (error) {
-                const retryCount = (this.retryCount.get(endpoint) || 0) + 1;
-                this.retryCount.set(endpoint, retryCount);
+                const currentRetries = this.retryCount.get(endpoint) || 0;
+                this.retryCount.set(endpoint, currentRetries + 1);
 
-                const errorMessage = this.getErrorMessage(error);
-                
+                // Notify subscribers of the error
                 const subscribers = this.subscribers.get(endpoint);
                 if (subscribers) {
-                    subscribers.forEach(callback => callback(null, { 
-                        message: errorMessage,
-                        retryCount,
+                    const errorInfo = {
+                        message: error.response?.data?.message || error.message || 'An error occurred while fetching updates',
+                        retryCount: currentRetries + 1,
                         maxRetries: this.MAX_RETRIES
-                    }));
+                    };
+
+                    subscribers.forEach(callback => {
+                        try {
+                            callback(null, errorInfo);
+                        } catch (callbackError) {
+                            console.error(`Error in error callback for ${endpoint}:`, callbackError);
+                        }
+                    });
                 }
 
                 // Stop polling if max retries reached
-                if (retryCount >= this.MAX_RETRIES) {
+                if (currentRetries >= this.MAX_RETRIES) {
+                    console.error(`Max retries (${this.MAX_RETRIES}) reached for ${endpoint}. Stopping polling.`);
                     this.stopPolling(endpoint);
-                    console.error(`Max retries (${this.MAX_RETRIES}) reached for endpoint: ${endpoint}`);
                     return;
                 }
             }
         };
 
-        // Execute immediately and then start interval
+        // Start the polling interval
+        this.pollingIntervals.set(endpoint, setInterval(poll, interval));
+        
+        // Execute immediately
         poll();
-        const intervalId = setInterval(poll, interval);
-        this.pollingIntervals.set(endpoint, intervalId);
     }
 
     // Stop polling for an endpoint
@@ -94,31 +106,16 @@ class PollingService {
 
     // Transform response data based on endpoint
     transformResponseData(endpoint, data) {
+        if (!data) return null;
+
         switch (endpoint) {
             case '/dashboard/stats/':
                 return {
-                    totalMatches: data.totalMatches || 0,
-                    totalTeams: data.totalTeams || 0,
-                    totalPlayers: data.totalPlayers || 0
-                };
-            case '/dashboard/upcoming-matches/':
-                return {
-                    upcomingMatches: data.upcomingMatches?.map(match => ({
-                        id: match.id,
-                        homeTeam: match.homeTeam,
-                        awayTeam: match.awayTeam,
-                        date: new Date(match.date),
-                        competition: match.competition
-                    })) || []
-                };
-            case '/dashboard/top-scorers/':
-                return {
-                    topScorers: data.topScorers?.map(scorer => ({
-                        playerId: scorer.playerId,
-                        playerName: scorer.playerName,
-                        team: scorer.team,
-                        goals: scorer.goals
-                    })) || []
+                    totalMatches: data.total_matches || 0,
+                    totalTeams: data.total_teams || 0,
+                    totalPlayers: data.total_scorers || 0,
+                    upcomingMatches: data.recent_matches || [],
+                    topScorers: data.top_scorers || []
                 };
             default:
                 return data;

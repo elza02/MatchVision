@@ -52,8 +52,13 @@ function Teams() {
 
   const fetchTeams = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/teams/');
-      setTeams(response.data || []);
+      const teamsData = response.data || [];
+      
+      // Filter out any malformed team data
+      const validTeams = teamsData.filter(team => team && team.name);
+      setTeams(validTeams);
       setError(null);
     } catch (error) {
       console.error('Error fetching teams:', error);
@@ -75,14 +80,16 @@ function Teams() {
   };
 
   const handleTeamClick = async (team) => {
+    if (!team || !team.id) return;
     setSelectedTeam(team);
     await fetchTeamStats(team.id);
     onOpen();
   };
 
-  const filteredTeams = teams?.filter((team) =>
-    team.name.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const filteredTeams = teams.filter((team) => {
+    if (!team || !team.name) return false;
+    return team.name.toLowerCase().includes((searchQuery || '').toLowerCase());
+  });
 
   if (loading) {
     return (
@@ -103,53 +110,53 @@ function Teams() {
 
   return (
     <Box p={4}>
-      <Box mb={6}>
-        <Heading mb={4}>Teams ({teams.length})</Heading>
-        <InputGroup maxW="400px">
-          <InputLeftElement pointerEvents="none">
-            <FiSearch />
-          </InputLeftElement>
-          <Input
-            placeholder="Search teams..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </InputGroup>
-      </Box>
+      <InputGroup mb={6}>
+        <InputLeftElement pointerEvents="none">
+          <FiSearch color="gray.300" />
+        </InputLeftElement>
+        <Input
+          placeholder="Search teams..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </InputGroup>
 
-      {filteredTeams.length === 0 ? (
-        <Alert status="info">
-          <AlertIcon />
-          No teams found
-        </Alert>
-      ) : (
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={6}>
-          {filteredTeams.map((team) => (
-            <Card
-              key={team.id}
-              cursor="pointer"
-              onClick={() => handleTeamClick(team)}
-              _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
-              transition="all 0.2s"
-            >
-              <CardBody>
-                <Stack spacing={4}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={6}>
+        {filteredTeams.map((team) => (
+          <Card
+            key={team.id}
+            onClick={() => handleTeamClick(team)}
+            cursor="pointer"
+            _hover={{ transform: 'scale(1.02)', transition: 'all 0.2s' }}
+          >
+            <CardBody>
+              <Stack spacing={4} align="center">
+                {team.crest && (
                   <Image
-                    src={team.crest || 'https://via.placeholder.com/150'}
-                    alt={team.name}
-                    borderRadius="lg"
-                    fallbackSrc="https://via.placeholder.com/150"
+                    src={team.crest}
+                    alt={`${team.name} crest`}
+                    boxSize="100px"
+                    objectFit="contain"
+                    fallbackSrc="https://via.placeholder.com/100?text=No+Image"
                   />
-                  <Heading size="md">{team.name}</Heading>
-                  <Text color="gray.500">Venu: {team.venue}</Text>
-                </Stack>
-              </CardBody>
-            </Card>
-          ))}
-        </SimpleGrid>
-      )}
+                )}
+                <Heading size="md" textAlign="center">{team.name}</Heading>
+                {team.area_name && (
+                  <Text color="gray.600">Area: {team.area_name}</Text>
+                )}
+                {team.founded && (
+                  <Text color="gray.600">Founded: {team.founded}</Text>
+                )}
+                {team.venue && (
+                  <Text color="gray.600">Venue: {team.venue}</Text>
+                )}
+              </Stack>
+            </CardBody>
+          </Card>
+        ))}
+      </SimpleGrid>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>{selectedTeam?.name} Statistics</ModalHeader>
