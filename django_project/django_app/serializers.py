@@ -4,20 +4,59 @@ from .models import Team, Competition, Match, TopScorer, Standing, Coach, Player
 
 class TeamSerializer(serializers.ModelSerializer):
     area_name = serializers.CharField(source='area.name', read_only=True, default='Unknown')
-    crest = serializers.URLField(default='')
-    
+    area_code = serializers.CharField(source='area.code', read_only=True, allow_null=True)
+    area_flag = serializers.URLField(source='area.flag', read_only=True, allow_null=True)
+
     class Meta:
         model = Team
         fields = [
-            'id', 'name', 'short_name', 'tla', 'crest', 
-            'area', 'area_name', 'founded', 'venue', 
-            'website', 'club_colors'
+            'id', 'name', 'short_name', 'tla', 'crest',
+            'address', 'website', 'founded', 'club_colors',
+            'venue', 'area', 'area_name', 'area_code', 'area_flag'
         ]
-    
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Ensure name is never null
-        data['name'] = instance.name or instance.short_name or 'Unknown Team'
+        
+        # Use actual data if available, otherwise use fallbacks
+        if instance.name:
+            data['name'] = instance.name
+        elif instance.short_name:
+            data['name'] = instance.short_name
+        else:
+            data['name'] = f"Team {instance.id}"
+
+        if instance.short_name:
+            data['short_name'] = instance.short_name
+        elif instance.name:
+            data['short_name'] = instance.name.split()[0]
+        else:
+            data['short_name'] = f"T{instance.id}"
+
+        if instance.tla:
+            data['tla'] = instance.tla
+        elif instance.short_name:
+            data['tla'] = instance.short_name[:3].upper()
+        elif instance.name:
+            data['tla'] = instance.name[:3].upper()
+        else:
+            data['tla'] = f"T{instance.id}"[:3].upper()
+        
+        # Set defaults for optional fields only if they're None
+        defaults = {
+            'venue': 'No Venue',
+            'founded': None,
+            'crest': f'https://crests.football-data.org/{instance.id}.png',
+            'club_colors': 'Not Available',
+            'website': '#',
+            'address': 'No Address',
+            'area_name': 'Unknown',
+        }
+        
+        for field, default in defaults.items():
+            if data.get(field) is None:
+                data[field] = default
+            
         return data
 
 class CompetitionSerializer(serializers.ModelSerializer):
@@ -310,7 +349,7 @@ class CompetitionAnalyticsSerializer(serializers.ModelSerializer):
                 match_goals = match.home_team_score + match.away_team_score
                 total_goals += match_goals
                 total_matches += 1
-                average = round(total_goals / total_matches, 2) if total_matches > 0 else 0
+                average = round(total_goals / total_matches if total_matches > 0 else 0, 2)
                 
                 goals_data.append({
                     'matchday': total_matches,

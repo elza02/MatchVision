@@ -1,64 +1,74 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
-  SimpleGrid,
-  Card,
-  CardBody,
+  Container,
+  VStack,
+  HStack,
+  Text,
   Image,
   Heading,
-  Text,
-  Stack,
-  Input,
-  InputGroup,
-  InputLeftElement,
-  Button,
-  useDisclosure,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
+  useColorModeValue,
   Spinner,
   Alert,
   AlertIcon,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Grid,
+  GridItem,
+  Stack,
+  Card,
+  CardBody,
+  IconButton,
+  Badge,
+  Stat,
+  StatLabel,
+  StatNumber,
+  Divider,
 } from '@chakra-ui/react';
-import { FiSearch } from 'react-icons/fi';
-import api from '../../services/api';
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '@chakra-ui/icons';
+import apiService from '../../services/api';
 
-function Teams() {
+const Teams = () => {
   const [teams, setTeams] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState(null);
-  const [teamStats, setTeamStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   useEffect(() => {
     fetchTeams();
-  }, []);
+  }, [currentPage, searchQuery]);
 
   const fetchTeams = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/teams/');
-      const teamsData = response.data || [];
+      const params = {
+        page: currentPage,
+        ...(searchQuery && { search: searchQuery })
+      };
+
+      const response = await apiService.getTeams(params);
+      const teamsData = response.data.results || [];
       
-      // Filter out any malformed team data
-      const validTeams = teamsData.filter(team => team && team.name);
+      // Validate and clean the data
+      const validTeams = teamsData.map(team => ({
+        ...team,
+        name: team.name || 'Unknown Team',
+        short_name: team.short_name || 'Unknown',
+        tla: team.tla || 'UNK',
+        area_name: team.area_name || 'Unknown',
+        venue: team.venue || 'Unknown Venue',
+        founded: team.founded || 'N/A',
+        crest: team.crest || 'https://via.placeholder.com/120?text=No+Crest'
+      }));
+
       setTeams(validTeams);
+      setTotalPages(Math.ceil(response.data.count / 12));
       setError(null);
     } catch (error) {
       console.error('Error fetching teams:', error);
@@ -68,28 +78,16 @@ function Teams() {
     }
   };
 
-  const fetchTeamStats = async (teamId) => {
-    try {
-      const response = await api.get(`/teams/${teamId}/statistics/`);
-      setTeamStats(response.data || null);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching team statistics:', error);
-      setError('Failed to load team statistics. Please try again later.');
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
     }
   };
 
-  const handleTeamClick = async (team) => {
-    if (!team || !team.id) return;
-    setSelectedTeam(team);
-    await fetchTeamStats(team.id);
-    onOpen();
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page when searching
   };
-
-  const filteredTeams = teams.filter((team) => {
-    if (!team || !team.name) return false;
-    return team.name.toLowerCase().includes((searchQuery || '').toLowerCase());
-  });
 
   if (loading) {
     return (
@@ -109,153 +107,101 @@ function Teams() {
   }
 
   return (
-    <Box p={4}>
-      <InputGroup mb={6}>
-        <InputLeftElement pointerEvents="none">
-          <FiSearch color="gray.300" />
-        </InputLeftElement>
-        <Input
-          placeholder="Search teams..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </InputGroup>
+    <Container maxW="container.xl" py={5}>
+      <VStack spacing={6} align="stretch">
+        <Stack direction={{ base: 'column', md: 'row' }} justify="space-between" align="center">
+          <Heading size="lg">Teams ({teams.length})</Heading>
+          <InputGroup maxW={{ base: "100%", md: "300px" }}>
+            <InputLeftElement pointerEvents="none">
+              <SearchIcon color="gray.300" />
+            </InputLeftElement>
+            <Input
+              placeholder="Search teams..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </InputGroup>
+        </Stack>
 
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={6}>
-        {filteredTeams.map((team) => (
-          <Card
-            key={team.id}
-            onClick={() => handleTeamClick(team)}
-            cursor="pointer"
-            _hover={{ transform: 'scale(1.02)', transition: 'all 0.2s' }}
-          >
-            <CardBody>
-              <Stack spacing={4} align="center">
-                {team.crest && (
-                  <Image
-                    src={team.crest}
-                    alt={`${team.name} crest`}
-                    boxSize="100px"
-                    objectFit="contain"
-                    fallbackSrc="https://via.placeholder.com/100?text=No+Image"
-                  />
-                )}
-                <Heading size="md" textAlign="center">{team.name}</Heading>
-                {team.area_name && (
-                  <Text color="gray.600">Area: {team.area_name}</Text>
-                )}
-                {team.founded && (
-                  <Text color="gray.600">Founded: {team.founded}</Text>
-                )}
-                {team.venue && (
-                  <Text color="gray.600">Venue: {team.venue}</Text>
-                )}
-              </Stack>
-            </CardBody>
-          </Card>
-        ))}
-      </SimpleGrid>
+        <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={6}>
+          {teams.map((team) => (
+            <GridItem key={team.id}>
+              <Card
+                bg={bgColor}
+                borderWidth="1px"
+                borderColor={borderColor}
+                borderRadius="lg"
+                overflow="hidden"
+                _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
+                transition="all 0.2s"
+              >
+                <CardBody>
+                  <VStack spacing={4} align="center">
+                    <Image
+                      src={team.crest}
+                      alt={team.name}
+                      boxSize="120px"
+                      objectFit="contain"
+                      fallbackSrc="https://via.placeholder.com/120?text=No+Crest"
+                    />
+                    <VStack spacing={2} align="center">
+                      <Heading size="md" textAlign="center">
+                        {team.name}
+                      </Heading>
+                      {team.tla && (
+                        <Badge colorScheme="blue" fontSize="sm">
+                          {team.tla}
+                        </Badge>
+                      )}
+                    </VStack>
+                    <Divider />
+                    <Grid templateColumns="repeat(2, 1fr)" gap={4} width="100%">
+                      <Stat>
+                        <StatLabel>Founded</StatLabel>
+                        <StatNumber fontSize="md">
+                          {team.founded || 'N/A'}
+                        </StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Area</StatLabel>
+                        <StatNumber fontSize="md">
+                          {team.area_name || 'N/A'}
+                        </StatNumber>
+                      </Stat>
+                    </Grid>
+                    {team.venue && (
+                      <Text color="gray.500" fontSize="sm" textAlign="center">
+                        🏟️ {team.venue}
+                      </Text>
+                    )}
+                  </VStack>
+                </CardBody>
+              </Card>
+            </GridItem>
+          ))}
+        </Grid>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{selectedTeam?.name} Statistics</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            {error ? (
-              <Alert status="error">
-                <AlertIcon />
-                {error}
-              </Alert>
-            ) : !teamStats ? (
-              <Box display="flex" justifyContent="center" p={4}>
-                <Spinner />
-              </Box>
-            ) : (
-              <Tabs>
-                <TabList>
-                  <Tab>Overall Stats</Tab>
-                  <Tab>Top Scorers</Tab>
-                  <Tab>Squad Details</Tab>
-                </TabList>
-                <TabPanels>
-                  {/* Overall Statistics */}
-                  <TabPanel>
-                    <Table variant="simple">
-                      <Thead>
-                        <Tr>
-                          <Th>Statistic</Th>
-                          <Th>Value</Th>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {Object.entries(teamStats.overall || {}).map(([key, value]) => (
-                          <Tr key={key}>
-                            <Td>{key.replace(/_/g, ' ').toUpperCase()}</Td>
-                            <Td>{value}</Td>
-                          </Tr>
-                        ))}
-                      </Tbody>
-                    </Table>
-                  </TabPanel>
-
-                  {/* Top Scorers */}
-                  <TabPanel>
-                    <Table variant="simple">
-                      <Thead>
-                        <Tr>
-                          <Th>Name</Th>
-                          <Th>Goals</Th>
-                          <Th>Assists</Th>
-                          <Th>Avg Minutes</Th>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {teamStats.top_scorers?.map((scorer, index) => (
-                          <Tr key={index}>
-                            <Td>{scorer.name}</Td>
-                            <Td>{scorer.total_goals}</Td>
-                            <Td>{scorer.total_assists}</Td>
-                            <Td>{scorer.avg_minutes?.toFixed(2)}</Td>
-                          </Tr>
-                        ))}
-                      </Tbody>
-                    </Table>
-                  </TabPanel>
-
-                  {/* Squad Details */}
-                  <TabPanel>
-                    <Table variant="simple">
-                      <Thead>
-                        <Tr>
-                          <Th>Squad Metric</Th>
-                          <Th>Value</Th>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        <Tr>
-                          <Td>Total Players</Td>
-                          <Td>{teamStats.squad.size}</Td>
-                        </Tr>
-                        <Tr>
-                          <Td>Total Market Value</Td>
-                          <Td>${teamStats.squad.total_market_value?.toLocaleString()}</Td>
-                        </Tr>
-                        <Tr>
-                          <Td>Average Player Value</Td>
-                          <Td>${teamStats.squad.average_player_value?.toLocaleString()}</Td>
-                        </Tr>
-                      </Tbody>
-                    </Table>
-                  </TabPanel>
-                </TabPanels>
-              </Tabs>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-    </Box>
+        {/* Pagination */}
+        <HStack justify="center" spacing={4}>
+          <IconButton
+            icon={<ChevronLeftIcon />}
+            onClick={() => handlePageChange(currentPage - 1)}
+            isDisabled={currentPage === 1}
+            aria-label="Previous page"
+          />
+          <Text>
+            Page {currentPage} of {totalPages}
+          </Text>
+          <IconButton
+            icon={<ChevronRightIcon />}
+            onClick={() => handlePageChange(currentPage + 1)}
+            isDisabled={currentPage === totalPages}
+            aria-label="Next page"
+          />
+        </HStack>
+      </VStack>
+    </Container>
   );
-}
+};
 
 export default Teams;

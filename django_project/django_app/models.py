@@ -2,24 +2,29 @@
 from django.db import models
 
 class Team(models.Model):
-    name = models.CharField(max_length=100, null=True)
-    short_name = models.CharField(max_length=50, null=True)
-    tla = models.CharField(max_length=10, null=True)
-    crest = models.URLField(max_length=200, null=True)
-    address = models.CharField(max_length=200, null=True)
-    website = models.URLField(max_length=200, null=True)
-    founded = models.IntegerField(null=True)
-    club_colors = models.CharField(max_length=100, null=True)
-    venue = models.CharField(max_length=100, null=True)
-    area = models.ForeignKey('Area', models.CASCADE, null=True)
-    coach = models.ForeignKey('Coach', models.CASCADE, null=True)
-    season = models.CharField(max_length=20, null=True)
+    name = models.CharField(max_length=100, null=True, blank=True)
+    short_name = models.CharField(max_length=50, null=True, blank=True)
+    tla = models.CharField(max_length=10, null=True, blank=True)
+    crest = models.URLField(max_length=200, null=True, blank=True)
+    address = models.CharField(max_length=200, null=True, blank=True)
+    website = models.URLField(max_length=200, null=True, blank=True)
+    founded = models.IntegerField(null=True, blank=True)
+    club_colors = models.CharField(max_length=100, null=True, blank=True)
+    venue = models.CharField(max_length=100, null=True, blank=True)
+    area = models.ForeignKey('Area', models.SET_NULL, null=True, blank=True)
+    coach = models.ForeignKey('Coach', models.SET_NULL, null=True, blank=True)
+    season = models.CharField(max_length=20, null=True, blank=True)
      
     class Meta:
         db_table = 'teams'
+        managed = False  # Tell Django this table already exists
 
     def __str__(self):
-        return self.name
+        return self.name or self.short_name or f"Team {self.id}"
+
+    @property
+    def display_name(self):
+        return self.name or self.short_name or f"Team {self.id}"
     
 class TeamCompetition(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
@@ -62,9 +67,13 @@ class Area(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20)
     flag = models.URLField(max_length=200, null=True)
-    
+
     class Meta:
         db_table = 'areas'
+        managed = False  # Tell Django this table already exists
+
+    def __str__(self):
+        return self.name
 
 
 class Competition(models.Model):

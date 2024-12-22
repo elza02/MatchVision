@@ -66,7 +66,19 @@ const apiService = {
     getMatchAnalytics: (id) => api.get(`/analytics/match/${id}/`),
 
     // Teams
-    getTeams: () => api.get('/teams/'),
+    async getTeams(params = {}) {
+        try {
+            const queryString = Object.entries(params)
+                .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+                .join('&');
+            const endpoint = `/teams/${queryString ? `?${queryString}` : ''}`;
+            const response = await api.get(endpoint);
+            return response;
+        } catch (error) {
+            console.error('Error fetching teams:', error);
+            throw error;
+        }
+    },
     getTeamDetails: (id) => api.get(`/teams/${id}/`),
     getTeamAnalytics: (id) => api.get(`/analytics/team/${id}/`),
     getTeamComparison: (team1Id, team2Id) => 
@@ -82,8 +94,20 @@ const apiService = {
     getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
     getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
+    // Analytics
+    getAnalyticsOverview: () => api.get('/analytics/overview/'),
+    getTeamAnalytics: (teamId) => api.get(`/analytics/team/${teamId}/`),
+
     // Generic CRUD
-    get: (endpoint) => api.get(endpoint),
+    async get(endpoint) {
+        try {
+            const response = await api.get(endpoint);
+            return response;
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    },
     post: (endpoint, data) => api.post(endpoint, data),
     put: (endpoint, data) => api.put(endpoint, data),
     patch: (endpoint, data) => api.patch(endpoint, data),

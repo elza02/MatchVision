@@ -1,8 +1,9 @@
+from django.db.models import Sum, Count, Avg, F, Q, Case, When
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
-from .models import Team, Competition, Match, TopScorer, Player
+from .models import Team, Competition, Match, TopScorer, Player, Area
 from .serializers import (
     TeamSerializer,
     CompetitionSerializer,
@@ -14,9 +15,8 @@ from .serializers import (
     MatchAnalyticsSerializer,
     PlayerAnalyticsSerializer
 )
-import django.db.models
-from django.db.models import Sum, Count, Avg, F, Q
 from django.db import connection
+from django.db import models
 
 class DashboardStatsView(APIView):
     def get(self, request):
@@ -127,12 +127,92 @@ class MatchDetailView(generics.RetrieveAPIView):
     queryset = Match.objects.all()
     serializer_class = MatchSerializer
 
-class TeamListView(generics.ListAPIView):
-    queryset = Team.objects.all()
-    serializer_class = TeamSerializer
+class TeamPagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    page_query_param = 'page'
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'results': data
+        })
+
+class TeamListView(APIView):
+    pagination_class = TeamPagination
+
+    def get(self, request):
+        try:
+            # Get query parameters
+            area = request.query_params.get('area')
+            search = request.query_params.get('search')
+            
+            # Start with teams that have actual data
+            teams = Team.objects.select_related('area').filter(
+                Q(name__isnull=False) | 
+                Q(short_name__isnull=False) |
+                Q(tla__isnull=False)
+            )
+            
+            # Debug: Print raw SQL and first few records
+            from django.db import connection
+            print("\nDEBUG: Executing raw SQL query:")
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT t.id, t.name, t.short_name, t.tla, t.crest, t.venue, t.founded, 
+                           a.id as area_id, a.name as area_name 
+                    FROM teams t 
+                    LEFT JOIN areas a ON t.area_id = a.id 
+                    WHERE t.name IS NOT NULL 
+                       OR t.short_name IS NOT NULL 
+                       OR t.tla IS NOT NULL
+                    ORDER BY t.name 
+                    LIMIT 5
+                """)
+                columns = [col[0] for col in cursor.description]
+                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                print("Raw Database Results:")
+                for row in results:
+                    print(row)
+            
+            # Apply filters
+            if area:
+                teams = teams.filter(area_id=area)
+            if search:
+                teams = teams.filter(
+                    Q(name__icontains=search) |
+                    Q(short_name__icontains=search) |
+                    Q(tla__icontains=search)
+                )
+
+            # Apply ordering - prioritize teams with names
+            teams = teams.order_by(
+                models.F('name').asc(nulls_last=True),
+                models.F('short_name').asc(nulls_last=True)
+            )
+
+            # Get paginator
+            paginator = self.pagination_class()
+            paginated_teams = paginator.paginate_queryset(teams, request)
+            
+            # Serialize and return the data
+            serializer = TeamSerializer(paginated_teams, many=True)
+            return paginator.get_paginated_response(serializer.data)
+            
+        except Exception as e:
+            print(f"Error in TeamListView: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': 'Failed to fetch teams. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class TeamDetailView(generics.RetrieveAPIView):
-    queryset = Team.objects.all()
+    queryset = Team.objects.select_related('area').all()
     serializer_class = TeamSerializer
 
 class PlayerListView(generics.ListAPIView):
@@ -163,6 +243,134 @@ class MatchPredictionsView(APIView):
         }
         return Response(predictions)
 
+class AnalyticsOverviewView(APIView):
+    def get(self, request):
+        try:
+            # Get overall statistics
+            total_matches = Match.objects.filter(status='FINISHED').count()
+            total_goals = Match.objects.filter(status='FINISHED').aggregate(
+                total=Sum(F('home_team_score') + F('away_team_score'))
+            )['total'] or 0
+            
+            # Get goals per matchday trend
+            matches = Match.objects.filter(status='FINISHED').order_by('match_date')
+            goals_trend = []
+            running_total = 0
+            match_count = 0
+            
+            for match in matches:
+                match_count += 1
+                match_goals = (match.home_team_score or 0) + (match.away_team_score or 0)
+                running_total += match_goals
+                goals_trend.append({
+                    'matchday': match_count,
+                    'average_goals': round(running_total / match_count, 2),
+                    'date': match.match_date
+                })
+
+            # Get team performance by area
+            area_stats = Area.objects.annotate(
+                team_count=Count('team', distinct=True),
+                total_goals=Sum(
+                    Case(
+                        When(team__home_matches__status='FINISHED', 
+                             then=F('team__home_matches__home_team_score')),
+                        default=0
+                    ) +
+                    Case(
+                        When(team__away_matches__status='FINISHED',
+                             then=F('team__away_matches__away_team_score')),
+                        default=0
+                    )
+                )
+            ).values('name', 'team_count', 'total_goals')
+
+            return Response({
+                'summary': {
+                    'total_matches': total_matches,
+                    'total_goals': total_goals,
+                    'average_goals_per_match': round(total_goals / total_matches if total_matches > 0 else 0, 2)
+                },
+                'goals_trend': goals_trend[-50:] if goals_trend else [],  # Last 50 matches
+                'area_stats': area_stats
+            })
+        except Exception as e:
+            print(f"Error in AnalyticsOverviewView: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch analytics data'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class TeamAnalyticsView(APIView):
+    def get(self, request, team_id):
+        try:
+            team = Team.objects.get(id=team_id)
+            
+            # Get match results
+            matches = Match.objects.filter(
+                Q(home_team=team) | Q(away_team=team),
+                status='FINISHED'
+            ).order_by('match_date')
+            
+            # Calculate performance metrics
+            performance = []
+            running_points = 0
+            match_count = 0
+            
+            for match in matches:
+                match_count += 1
+                is_home = match.home_team_id == team.id
+                team_score = match.home_team_score if is_home else match.away_team_score
+                opponent_score = match.away_team_score if is_home else match.home_team_score
+                
+                # Calculate points for this match
+                if team_score > opponent_score:
+                    points = 3
+                elif team_score == opponent_score:
+                    points = 1
+                else:
+                    points = 0
+                    
+                running_points += points
+                
+                performance.append({
+                    'match_date': match.match_date,
+                    'opponent': match.away_team.name if is_home else match.home_team.name,
+                    'score': f"{team_score}-{opponent_score}",
+                    'points': points,
+                    'running_points': running_points,
+                    'average_points': round(running_points / match_count, 2)
+                })
+            
+            # Get top scorers for the team
+            top_scorers = TopScorer.objects.filter(team=team).order_by('-goals')[:5]
+            
+            return Response({
+                'team_info': {
+                    'name': team.name,
+                    'founded': team.founded,
+                    'venue': team.venue,
+                    'area': team.area.name if team.area else 'Unknown'
+                },
+                'performance': performance,
+                'top_scorers': [{
+                    'player': scorer.player.name,
+                    'goals': scorer.goals,
+                    'assists': scorer.assists
+                } for scorer in top_scorers]
+            })
+        except Team.DoesNotExist:
+            return Response(
+                {'error': 'Team not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"Error in TeamAnalyticsView: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch team analytics'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class CompetitionAnalyticsView(APIView):
     def get(self, request, competition_id):
         try:
@@ -172,18 +380,6 @@ class CompetitionAnalyticsView(APIView):
         except Competition.DoesNotExist:
             return Response(
                 {"error": "Competition not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-class TeamAnalyticsView(APIView):
-    def get(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-            serializer = TeamAnalyticsSerializer(team)
-            return Response(serializer.data)
-        except Team.DoesNotExist:
-            return Response(
-                {"error": "Team not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
 

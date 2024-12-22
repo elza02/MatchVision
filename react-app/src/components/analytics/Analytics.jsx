@@ -1,256 +1,3 @@
-// import { useState, useEffect } from 'react';
-// import {
-//   Box,
-//   SimpleGrid,
-//   Card,
-//   CardHeader,
-//   CardBody,
-//   Heading,
-//   Select,
-//   Table,
-//   Thead,
-//   Tbody,
-//   Tr,
-//   Th,
-//   Td,
-//   Tabs,
-//   TabList,
-//   TabPanels,
-//   Tab,
-//   TabPanel,
-//   Stack,
-//   Text,
-//   Progress,
-//   Spinner,
-//   useToast,
-// } from '@chakra-ui/react';
-// import {
-//   LineChart,
-//   Line,
-//   XAxis,
-//   YAxis,
-//   CartesianGrid,
-//   Tooltip,
-//   Legend,
-//   ResponsiveContainer,
-//   BarChart,
-//   Bar,
-// } from 'recharts';
-// import api from '../../services/api';
-
-// function Analytics() {
-//   const [competitions, setCompetitions] = useState([]);
-//   const [selectedCompetition, setSelectedCompetition] = useState('');
-//   const [analyticsData, setAnalyticsData] = useState({
-//     standings: [],
-//     topScorers: [],
-//     matches: [],
-//   });
-//   const [loading, setLoading] = useState(true);
-//   const toast = useToast();
-
-//   useEffect(() => {
-//     fetchCompetitions();
-//   }, []);
-
-//   useEffect(() => {
-//     if (selectedCompetition) {
-//       fetchAnalyticsData();
-//     }
-//   }, [selectedCompetition]);
-
-//   const fetchCompetitions = async () => {
-//     try {
-//       const response = await api.get('/competitions/');
-//       setCompetitions(response.data);
-//       if (response.data.length > 0) {
-//         setSelectedCompetition(response.data[0].id);
-//       }
-//     } catch (error) {
-//       console.error('Error fetching competitions:', error);
-//       setLoading(false);
-//     }
-//   };
-
-//   const fetchAnalyticsData = async () => {
-//     try {
-//       setLoading(true);
-//       const [standingsRes, scorersRes, matchesRes] = await Promise.all([
-//         api.get(`/competitions/${selectedCompetition}/standings/`),
-//         api.get(`/top-scorers/?competition=${selectedCompetition}`),
-//         api.get(`/matches/?competition=${selectedCompetition}`),
-//       ]);
-
-//       setAnalyticsData({
-//         standings: standingsRes.data || [],
-//         topScorers: scorersRes.data || [],
-//         matches: matchesRes.data?.results || [], // Access the results array from the paginated response
-//       });
-//     } catch (error) {
-//       console.error('Error fetching analytics data:', error);
-//       toast({
-//         title: 'Error',
-//         description: 'Failed to load analytics data. Please try again later.',
-//         status: 'error',
-//         duration: 5000,
-//         isClosable: true,
-//       });
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const prepareMatchData = () => {
-//     if (!analyticsData?.matches?.length) return [];
-
-//     return analyticsData.matches
-//       .slice(-10)
-//       .map((match) => ({
-//         date: new Date(match.match_date).toLocaleDateString(),
-//         goals: (match.home_team_score !== null && match.away_team_score !== null) 
-//           ? match.home_team_score + match.away_team_score 
-//           : 0,
-//       }))
-//       .reverse();
-//   };
-
-//   if (loading) {
-//     return (
-//       <Box display="flex" justifyContent="center" alignItems="center" minH="500px">
-//         <Spinner size="xl" />
-//       </Box>
-//     );
-//   }
-
-//   return (
-//     <Box>
-//       <Box mb={6}>
-//         <Heading mb={4}>Analytics</Heading>
-//         <Select
-//           value={selectedCompetition}
-//           onChange={(e) => setSelectedCompetition(e.target.value)}
-//           maxW="300px"
-//         >
-//           {competitions.map((competition) => (
-//             <option key={competition.id} value={competition.id}>
-//               {competition.name}
-//             </option>
-//           ))}
-//         </Select>
-//       </Box>
-
-//       <Tabs>
-//         <TabList>
-//           <Tab>Overview</Tab>
-//           <Tab>Team Performance</Tab>
-//           <Tab>Player Stats</Tab>
-//         </TabList>
-
-//         <TabPanels>
-//           <TabPanel>
-//             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-//               <Card>
-//                 <CardHeader>
-//                   <Heading size="md">Goals per Match Trend</Heading>
-//                 </CardHeader>
-//                 <CardBody>
-//                   <Box h="300px">
-//                     <ResponsiveContainer width="100%" height="100%">
-//                       <LineChart data={prepareMatchData()}>
-//                         <CartesianGrid strokeDasharray="3 3" />
-//                         <XAxis dataKey="date" />
-//                         <YAxis />
-//                         <Tooltip />
-//                         <Legend />
-//                         <Line type="monotone" dataKey="goals" stroke="#2196f3" />
-//                       </LineChart>
-//                     </ResponsiveContainer>
-//                   </Box>
-//                 </CardBody>
-//               </Card>
-
-//               <Card>
-//                 <CardHeader>
-//                   <Heading size="md">Top Scorers</Heading>
-//                 </CardHeader>
-//                 <CardBody>
-//                   <Box h="300px">
-//                     <ResponsiveContainer width="100%" height="100%">
-//                       <BarChart data={analyticsData?.topScorers.slice(0, 5)}>
-//                         <CartesianGrid strokeDasharray="3 3" />
-//                         <XAxis dataKey="player_name" />
-//                         <YAxis />
-//                         <Tooltip />
-//                         <Legend />
-//                         <Bar dataKey="goals" fill="#2196f3" />
-//                       </BarChart>
-//                     </ResponsiveContainer>
-//                   </Box>
-//                 </CardBody>
-//               </Card>
-//             </SimpleGrid>
-//           </TabPanel>
-
-//           <TabPanel>
-//             <Card>
-//               <CardHeader>
-//                 <Heading size="md">Team Standings</Heading>
-//               </CardHeader>
-//               <CardBody>
-//                 <Table variant="simple">
-//                   <Thead>
-//                     <Tr>
-//                       <Th>Team</Th>
-//                       <Th isNumeric>Matches</Th>
-//                       <Th isNumeric>Goals</Th>
-//                     </Tr>
-//                   </Thead>
-//                   <Tbody>
-//                     {analyticsData?.standings.map((team) => (
-//                       <Tr key={team.team.id}>
-//                         <Td>{team.team.name}</Td>
-//                         <Td isNumeric>{team.matches_played}</Td>
-//                         <Td isNumeric>{team.goals_scored}</Td>
-//                       </Tr>
-//                     ))}
-//                   </Tbody>
-//                 </Table>
-//               </CardBody>
-//             </Card>
-//           </TabPanel>
-
-//           <TabPanel>
-//             <Card>
-//               <CardHeader>
-//                 <Heading size="md">Top Scorers</Heading>
-//               </CardHeader>
-//               <CardBody>
-//                 <Stack spacing={4}>
-//                   {analyticsData?.topScorers.slice(0, 10).map((scorer) => (
-//                     <Box key={scorer.player_id}>
-//                       <Stack direction="row" justify="space-between" mb={1}>
-//                         <Text>{scorer.player_name}</Text>
-//                         <Text>{scorer.goals} goals</Text>
-//                       </Stack>
-//                       <Progress
-//                         value={(scorer.goals / analyticsData.topScorers[0].goals) * 100}
-//                         colorScheme="brand"
-//                       />
-//                     </Box>
-//                   ))}
-//                 </Stack>
-//               </CardBody>
-//             </Card>
-//           </TabPanel>
-//         </TabPanels>
-//       </Tabs>
-//     </Box>
-//   );
-// }
-
-// export default Analytics;
-
-
 import { useState, useEffect } from 'react';
 import {
   Box,
@@ -260,12 +7,6 @@ import {
   CardBody,
   Heading,
   Select,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   Tabs,
   TabList,
   TabPanels,
@@ -276,6 +17,10 @@ import {
   Progress,
   Spinner,
   useToast,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
 } from '@chakra-ui/react';
 import {
   LineChart,
@@ -288,42 +33,42 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import api from '../../services/api';
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
 function Analytics() {
-  const [competitions, setCompetitions] = useState([]);
-  const [selectedCompetition, setSelectedCompetition] = useState('');
-  const [analyticsData, setAnalyticsData] = useState({
-    standings: [],
-    topScorers: [],
-    matches: [],
-  });
+  const [overview, setOverview] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [teams, setTeams] = useState([]);
+  const [teamAnalytics, setTeamAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   useEffect(() => {
-    fetchCompetitions();
+    fetchOverview();
+    fetchTeams();
   }, []);
 
   useEffect(() => {
-    if (selectedCompetition) {
-      fetchAnalyticsData();
+    if (selectedTeam) {
+      fetchTeamAnalytics(selectedTeam);
     }
-  }, [selectedCompetition]);
+  }, [selectedTeam]);
 
-  const fetchCompetitions = async () => {
+  const fetchOverview = async () => {
     try {
-      const response = await api.get('/competitions/');
-      setCompetitions(response.data);
-      if (response.data.length > 0) {
-        setSelectedCompetition(response.data[0].id);
-      }
+      const response = await api.get('/analytics/overview/');
+      setOverview(response.data);
     } catch (error) {
-      console.error('Error fetching competitions:', error);
+      console.error('Error fetching overview:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load competitions.',
+        description: 'Failed to load analytics overview',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -331,25 +76,30 @@ function Analytics() {
     }
   };
 
-  const fetchAnalyticsData = async () => {
+  const fetchTeams = async () => {
+    try {
+      const response = await api.get('/teams/');
+      setTeams(response.data.results);
+      if (response.data.results.length > 0) {
+        setSelectedTeam(response.data.results[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTeamAnalytics = async (teamId) => {
     try {
       setLoading(true);
-      const [standingsRes, scorersRes, matchesRes] = await Promise.all([
-        api.get(`/competitions/${selectedCompetition}/standings/`),
-        api.get(`/competitions/${selectedCompetition}/top-scorers/`),
-        api.get(`/competitions/${selectedCompetition}/matches/`),
-      ]);
-
-      setAnalyticsData({
-        standings: standingsRes.data || [],
-        topScorers: scorersRes.data || [],
-        matches: matchesRes.data || [],
-      });
+      const response = await api.get(`/analytics/team/${teamId}/`);
+      setTeamAnalytics(response.data);
     } catch (error) {
-      console.error('Error fetching analytics data:', error);
+      console.error('Error fetching team analytics:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load analytics data. Please try again later.',
+        description: 'Failed to load team analytics',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -359,145 +109,179 @@ function Analytics() {
     }
   };
 
-  const prepareMatchData = () => {
-    if (!analyticsData?.matches?.length) return [];
-
-    return analyticsData.matches
-      .slice(-10)
-      .map((match) => ({
-        date: new Date(match.match_date).toLocaleDateString(),
-        goals: match.total_goals || 0,
-      }))
-      .reverse();
-  };
-
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="500px">
+      <Box p={4} display="flex" justifyContent="center" alignItems="center">
         <Spinner size="xl" />
       </Box>
     );
   }
 
   return (
-    <Box>
-      <Box mb={6}>
-        <Heading mb={4}>Analytics</Heading>
-        <Select
-          value={selectedCompetition}
-          onChange={(e) => setSelectedCompetition(e.target.value)}
-          maxW="300px"
-        >
-          {competitions.map((competition) => (
-            <option key={competition.id} value={competition.id}>
-              {competition.name}
-            </option>
-          ))}
-        </Select>
-      </Box>
-
+    <Box p={4}>
       <Tabs>
         <TabList>
           <Tab>Overview</Tab>
-          <Tab>Team Performance</Tab>
-          <Tab>Player Stats</Tab>
+          <Tab>Team Analysis</Tab>
         </TabList>
 
         <TabPanels>
           <TabPanel>
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              <Card>
-                <CardHeader>
-                  <Heading size="md">Goals per Match Trend</Heading>
-                </CardHeader>
-                <CardBody>
-                  <Box h="300px">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={prepareMatchData()}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="goals" stroke="#2196f3" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </CardBody>
-              </Card>
+            {overview && (
+              <>
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={8}>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Total Matches</StatLabel>
+                        <StatNumber>{overview.summary.total_matches}</StatNumber>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Total Goals</StatLabel>
+                        <StatNumber>{overview.summary.total_goals}</StatNumber>
+                        <StatHelpText>
+                          Avg: {overview.summary.average_goals_per_match} per match
+                        </StatHelpText>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                </SimpleGrid>
 
-              <Card>
-                <CardHeader>
-                  <Heading size="md">Top Scorers</Heading>
-                </CardHeader>
-                <CardBody>
-                  <Box h="300px">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analyticsData?.topScorers.slice(0, 5)}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="player_name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="goals" fill="#2196f3" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </CardBody>
-              </Card>
-            </SimpleGrid>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Goals Trend</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Box h="300px">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={overview.goals_trend}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="matchday" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="average_goals"
+                              stroke="#8884d8"
+                              name="Average Goals"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </CardBody>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Teams by Area</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Box h="300px">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={overview.area_stats}
+                              dataKey="team_count"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={100}
+                              fill="#8884d8"
+                            >
+                              {overview.area_stats.map((entry, index) => (
+                                <Cell
+                                  key={`cell-${index}`}
+                                  fill={COLORS[index % COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </CardBody>
+                  </Card>
+                </SimpleGrid>
+              </>
+            )}
           </TabPanel>
 
           <TabPanel>
-            <Card>
-              <CardHeader>
-                <Heading size="md">Team Standings</Heading>
-              </CardHeader>
-              <CardBody>
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Team</Th>
-                      <Th isNumeric>Matches</Th>
-                      <Th isNumeric>Goals</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {analyticsData?.standings.map((team) => (
-                      <Tr key={team.team_id}>
-                        <Td>{team.team_name}</Td>
-                        <Td isNumeric>{team.matches_played}</Td>
-                        <Td isNumeric>{team.goals_for}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </CardBody>
-            </Card>
-          </TabPanel>
+            <Box mb={4}>
+              <Select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </Select>
+            </Box>
 
-          <TabPanel>
-            <Card>
-              <CardHeader>
-                <Heading size="md">Top Scorers</Heading>
-              </CardHeader>
-              <CardBody>
-                <Stack spacing={4}>
-                  {analyticsData?.topScorers.slice(0, 10).map((scorer) => (
-                    <Box key={scorer.player_id}>
-                      <Stack direction="row" justify="space-between" mb={1}>
-                        <Text>{scorer.player_name}</Text>
-                        <Text>{scorer.goals} goals</Text>
-                      </Stack>
-                      <Progress
-                        value={(scorer.goals / analyticsData.topScorers[0].goals) * 100}
-                        colorScheme="brand"
-                      />
+            {teamAnalytics && (
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <Card>
+                  <CardHeader>
+                    <Heading size="md">Points Progression</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <Box h="300px">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={teamAnalytics.performance}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="match_date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="running_points"
+                            stroke="#8884d8"
+                            name="Total Points"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="average_points"
+                            stroke="#82ca9d"
+                            name="Average Points"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </Box>
-                  ))}
-                </Stack>
-              </CardBody>
-            </Card>
+                  </CardBody>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <Heading size="md">Top Scorers</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <Box h="300px">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={teamAnalytics.top_scorers}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="player" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="goals" fill="#8884d8" name="Goals" />
+                          <Bar dataKey="assists" fill="#82ca9d" name="Assists" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </CardBody>
+                </Card>
+              </SimpleGrid>
+            )}
           </TabPanel>
         </TabPanels>
       </Tabs>
