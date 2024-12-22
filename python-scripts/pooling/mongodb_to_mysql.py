@@ -421,21 +421,19 @@ def main():
                         match_date = match.get("utcDate", None)
                         match_status = match.get("status", None)
                         match_stage = match.get("stage", None)
-                        match_home_team = match.get("home_team", {}).get("id", None)
-                        match_away_team = match.get("away_team", {}).get("id", None)
+                        match_home_team = match.get("home_team", {})
+                        match_away_team = match.get("away_team", {})
                         match_home_team_score = match.get("score", {}).get("fullTime", {}).get("home", None)
                         match_away_team_score = match.get("score", {}).get("fullTime", {}).get("away", None)
 
                         area = match.get("area", None)
                         area_id = add_area_if_not_exist(area, cursor, connection) if area else None
                         
-                        match_season = match.get("season", season_from_dict)
-                        
                         match_competition = match.get("competition", competition_from_dict)
                         competition_id = add_competition_if_not_exist(match_competition, area_id, cursor, connection) if match_competition else None
                         
-                        match_home_team_id = add_team_if_not_exist(match.get("home_team", {}), cursor, connection) if match.get("home_team", {}) else None
-                        match_away_team_id = add_team_if_not_exist(match.get("away_team", {}), cursor, connection) if match.get("away_team", {}) else None
+                        match_home_team_id = add_team_if_not_exist(match_home_team, cursor, connection) if match_home_team else None
+                        match_away_team_id = add_team_if_not_exist(match_away_team, cursor, connection) if match_away_team else None
 
                         # Now insert the match data
                         query = """
@@ -443,13 +441,17 @@ def main():
                         (id, match_date, status, stage, home_team_id, away_team_id, home_team_score, away_team_score, area_id, season, competition_id)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """
-                        cursor.execute(query, (match_id, date_converter(match_date), match_status, match_stage, match_home_team, match_away_team,
-                                            match_home_team_score, match_away_team_score, area_id, match_season, competition_id))
+                        cursor.execute(query, (match_id, date_converter(match_date), match_status, match_stage, match_home_team_id, match_away_team_id,
+                                            match_home_team_score, match_away_team_score, area_id, season_from_dict, competition_id))
                         
-                        # cursor.execute(query, (match_id, date_converter(match_date), match_status, match_stage, match_home_team_id, match_away_team_id,
-                        #                     match_home_team_score, match_away_team_score, None, match_season, None))
+                        # cursor.execute(query, (match_id, date_converter(match_date), match_status, match_stage, None, None,
+                        #                     match_home_team_score, match_away_team_score, None, season_from_dict, None))
 
                         connection.commit()
+                        # print(f"""
+                        #       From matches: {match_id}, {date_converter(match_date)}, {match_status}, {match_stage}, {match_home_team_id}, {match_away_team_id},
+                        #         {match_home_team_score}, {match_away_team_score}, {area_id}, {season_from_dict}, {competition_id}
+                        #       """)
                     except Exception as e:
                         connection.rollback()
                         logging.error(f"Error processing match {match.get('id', 'unknown')}: {e}")
