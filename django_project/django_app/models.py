@@ -48,11 +48,11 @@ class Coach(models.Model):
 
 
 class Player(models.Model):
-    name = models.CharField(max_length=100)
-    position = models.CharField(max_length=50)
+    name = models.CharField(max_length=100, null=True)
+    position = models.CharField(max_length=50, null=True)
     date_of_birth = models.DateField(null=True)
-    nationality = models.CharField(max_length=100)
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players')
+    nationality = models.CharField(max_length=100, null=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players', null=True)
     
     class Meta:
         db_table = 'players'
@@ -104,10 +104,10 @@ class TopScorer(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, null=True)
     player = models.ForeignKey(Player, on_delete=models.CASCADE, null=True)
     team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
-    played_matches = models.IntegerField(default=0)
-    goals = models.IntegerField(default=0)
-    assists = models.IntegerField(default=0)
-    penalties = models.IntegerField(default=0)
+    played_matches = models.IntegerField(default=0, null=True)
+    goals = models.IntegerField(default=0, null=True)
+    assists = models.IntegerField(default=0, null=True)
+    penalties = models.IntegerField(default=0, null=True)
     season = models.CharField(max_length=20, null=True, default='')
 
     class Meta:
