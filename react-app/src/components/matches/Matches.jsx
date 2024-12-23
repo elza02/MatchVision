@@ -50,6 +50,7 @@ const Matches = () => {
   const fetchMatches = async () => {
     try {
       setLoading(true);
+      setError(null);
       let url = `/matches/?page=${currentPage}`;
       
       // Add filters to URL
@@ -59,13 +60,21 @@ const Matches = () => {
       if (filters.dateFrom) url += `&date_from=${filters.dateFrom}`;
       if (filters.dateTo) url += `&date_to=${filters.dateTo}`;
 
+      console.log('Fetching matches from:', url); // Debug log
       const response = await apiService.get(url);
-      setMatches(response.data.results);
-      setTotalPages(Math.ceil(response.data.count / 20)); // 20 is page_size from backend
-      setError(null);
+      console.log('Response:', response); // Debug log
+      
+      if (!response || !response.results) {
+        throw new Error('Invalid response format from server');
+      }
+
+      setMatches(response.results);
+      setTotalPages(Math.ceil(response.count / 20)); // 20 is page_size from backend
     } catch (error) {
       console.error('Error fetching matches:', error);
-      setError('Failed to load matches. Please try again later.');
+      setError(error.message || 'Failed to load matches. Please try again later.');
+      setMatches([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }

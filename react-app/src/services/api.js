@@ -57,14 +57,14 @@ api.interceptors.response.use(
 
 const apiService = {
     // Dashboard
-    getDashboardStats: () => api.get('/dashboard/stats/'),
-    getDashboardMatches: () => api.get('/dashboard/upcoming-matches/'),
-    getDashboardScorers: () => api.get('/dashboard/top-scorers/'),
+    getDashboardStats: () => api.get('dashboard/stats/'),
+    getDashboardMatches: () => api.get('dashboard/upcoming-matches/'),
+    getDashboardScorers: () => api.get('dashboard/top-scorers/'),
 
     // Matches
-    getMatches: () => api.get('/matches/'),
-    getMatchDetails: (id) => api.get(`/matches/${id}/`),
-    getMatchAnalytics: (id) => api.get(`/analytics/match/${id}/`),
+    getMatches: () => api.get('matches/'),
+    getMatchDetails: (id) => api.get(`matches/${id}/`),
+    getMatchAnalytics: (id) => api.get(`analytics/match/${id}/`),
 
     // Teams
     async getTeams(params = {}) {
@@ -72,7 +72,7 @@ const apiService = {
             const queryString = Object.entries(params)
                 .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
                 .join('&');
-            const endpoint = `/teams/${queryString ? `?${queryString}` : ''}`;
+            const endpoint = `teams/${queryString ? `?${queryString}` : ''}`;
             const response = await api.get(endpoint);
             return response;
         } catch (error) {
@@ -80,25 +80,25 @@ const apiService = {
             throw error;
         }
     },
-    getTeamDetails: (id) => api.get(`/teams/${id}/`),
-    getTeamAnalytics: (id) => api.get(`/analytics/team/${id}/`),
+    getTeamDetails: (id) => api.get(`teams/${id}/`),
+    getTeamAnalytics: (id) => api.get(`analytics/team/${id}/`),
     getTeamComparison: (team1Id, team2Id) => 
-        api.get(`/analytics/team-comparison/${team1Id}/${team2Id}/`),
+        api.get(`analytics/team-comparison/${team1Id}/${team2Id}/`),
 
     // Players
-    getPlayers: () => api.get('/players/'),
+    getPlayers: () => api.get('players/'),
     getPlayerDetails: (id) => api.get(`/players/${id}/`),
     getPlayerAnalytics: (id) => api.get(`/analytics/player/${id}/`),
 
     // Competitions
-    getCompetitions: () => api.get('/competitions/'),
+    getCompetitions: () => api.get('competitions/'),
     getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
     getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
     // Analytics
     getAnalyticsOverview: async () => {
         try {
-            const response = await api.get('/analytics/overview/');
+            const response = await api.get('analytics/overview/');
             console.log('Analytics Overview Response:', response.data);
             return response.data;
         } catch (error) {
@@ -122,10 +122,6 @@ const apiService = {
         try {
             const response = await api.get(endpoint);
             console.log('API Response from ' + endpoint + ':', response.status);
-            // Handle paginated responses
-            if (response.data && response.data.hasOwnProperty('results')) {
-                return response.data.results;
-            }
             return response.data;
         } catch (error) {
             console.error('API Error:', error);

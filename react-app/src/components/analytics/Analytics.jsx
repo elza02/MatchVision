@@ -72,7 +72,7 @@ function Analytics() {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/analytics/overview/');
+      const response = await api.getAnalyticsOverview();
       console.log('Overview data:', response);
       setOverview(response);
     } catch (err) {
@@ -92,13 +92,13 @@ function Analytics() {
 
   const fetchTeams = async () => {
     try {
-      const response = await api.get('/teams/');
+      const response = await api.getTeams();
       console.log('Teams data:', response);
-      if (Array.isArray(response)) {
-        setTeams(response);
+      if (response && response.data) {
+        setTeams(response.data);
       } else {
         setTeams([]);
-        console.error('Teams data is not an array:', response);
+        console.error('Invalid teams response:', response);
       }
     } catch (err) {
       console.error('Error fetching teams:', err);
@@ -119,9 +119,9 @@ function Analytics() {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get(`/analytics/team/${teamId}/`);
+      const response = await api.getTeamAnalytics(teamId);
       console.log('Team analytics data:', response);
-      setTeamAnalytics(response);
+      setTeamAnalytics(response.data);
     } catch (err) {
       console.error('Error fetching team analytics:', err);
       setError(err.message || 'Failed to fetch team analytics');

@@ -97,7 +97,9 @@ class MatchListView(APIView):
             date_to = request.query_params.get('date_to')
             
             # Start with all matches
-            matches = Match.objects.all().order_by('-match_date')
+            matches = Match.objects.select_related(
+                'competition', 'home_team', 'away_team'
+            ).order_by('-match_date')
             
             # Apply filters
             if status:
@@ -115,6 +117,12 @@ class MatchListView(APIView):
             paginator = self.pagination_class()
             paginated_matches = paginator.paginate_queryset(matches, request)
             
+            if paginated_matches is None:
+                return Response({
+                    'error': 'Invalid page number',
+                    'message': 'The requested page number is out of range.'
+                }, status=400)
+            
             # Serialize the paginated data
             serializer = MatchSerializer(paginated_matches, many=True)
             
@@ -122,7 +130,11 @@ class MatchListView(APIView):
             return paginator.get_paginated_response(serializer.data)
             
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            print(f"Error in MatchListView: {str(e)}")
+            return Response({
+                'error': str(e),
+                'message': 'Failed to fetch matches'
+            }, status=500)
 
 class MatchDetailView(generics.RetrieveAPIView):
     queryset = Match.objects.all()
