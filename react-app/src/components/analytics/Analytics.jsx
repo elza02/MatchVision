@@ -43,6 +43,7 @@ import {
   Cell,
 } from 'recharts';
 import api from '../../services/api';
+import axios from 'axios';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const CHART_HEIGHT = 400;
@@ -114,8 +115,6 @@ function Analytics() {
   };
 
   const fetchTeamAnalytics = async (teamId) => {
-    if (!teamId) return;
-    
     try {
       setLoading(true);
       setError(null);
@@ -124,41 +123,18 @@ function Analytics() {
       const response = await api.getTeamAnalytics(teamId);
       console.log('Team analytics response:', response);
       
-      // Log the data structure we received
-      console.log('Team analytics data structure:', {
-        hasData: !!response.data,
-        hasSummary: !!response.data?.summary,
-        hasPerformance: Array.isArray(response.data?.performance),
-        summaryKeys: response.data?.summary ? Object.keys(response.data.summary) : [],
-        performanceLength: Array.isArray(response.data?.performance) ? response.data.performance.length : 0
-      });
-
-      // Validate the response data
-      if (!response.data) {
-        throw new Error('No data received from server');
+      if (!response || !response.performance || !response.summary) {
+        console.error('Invalid data structure:', response);
+        throw new Error('Invalid data structure received');
       }
 
-      const { summary, performance } = response.data;
-
-      // Validate summary
-      if (!summary || typeof summary !== 'object') {
-        throw new Error('Invalid summary data');
-      }
-
-      // Validate performance
-      if (!Array.isArray(performance)) {
-        throw new Error('Invalid performance data');
-      }
-
-      // Set the analytics data
-      setTeamAnalytics(response.data);
-      
-    } catch (err) {
-      console.error('Error fetching team analytics:', err);
-      setError(err.message || 'Failed to fetch team analytics');
+      setTeamAnalytics(response);
+    } catch (error) {
+      console.error('Error fetching team analytics:', error);
+      setError(error.message || 'Failed to fetch team analytics');
       toast({
         title: 'Error',
-        description: err.message || 'Failed to fetch team analytics',
+        description: error.message || 'Failed to fetch team analytics',
         status: 'error',
         duration: 5000,
         isClosable: true,

@@ -38,6 +38,7 @@ import {
   Bar,
 } from 'recharts';
 import apiService from '../../services/api';
+import axios from 'axios';
 
 function TeamAnalytics({ teamId }) {
   const [analytics, setAnalytics] = useState(null);
@@ -47,43 +48,25 @@ function TeamAnalytics({ teamId }) {
 
   useEffect(() => {
     const fetchTeamAnalytics = async () => {
-      if (!teamId) return;
+      if (!teamId) {
+        console.log('No team ID provided, skipping fetch');
+        return;
+      }
 
       try {
         setLoading(true);
         setError(null);
         console.log('Fetching analytics for team:', teamId);
-        const response = await apiService.getTeamAnalytics(teamId);
-        console.log('Team analytics response:', response);
+        
+        const data = await apiService.getTeamAnalytics(teamId);
+        console.log('Team analytics response:', data);
 
-        // Validate response data
-        if (!response || !response.data) {
-          throw new Error('No data received from server');
+        if (!data || !data.performance || !data.summary) {
+          console.error('Invalid data structure:', data);
+          throw new Error('Invalid data structure received');
         }
 
-        const { summary, performance } = response.data;
-
-        // Validate summary
-        if (!summary || typeof summary !== 'object') {
-          throw new Error('Invalid summary data');
-        }
-
-        // Validate performance array
-        if (!Array.isArray(performance)) {
-          throw new Error('Invalid performance data');
-        }
-
-        // Format dates in performance data
-        const formattedData = {
-          ...response.data,
-          performance: performance.map(match => ({
-            ...match,
-            match_date: new Date(match.match_date).toISOString().split('T')[0]
-          }))
-        };
-
-        console.log('Setting formatted analytics data:', formattedData);
-        setAnalytics(formattedData);
+        setAnalytics(data);
       } catch (error) {
         console.error('Error fetching team analytics:', error);
         setError(error.message || 'Failed to fetch team analytics');
@@ -120,7 +103,7 @@ function TeamAnalytics({ teamId }) {
     );
   }
 
-  if (!analytics || !analytics.summary) {
+  if (!analytics || !analytics.performance || !analytics.summary) {
     return (
       <Alert status="info" mb={4}>
         <AlertIcon />
@@ -129,12 +112,6 @@ function TeamAnalytics({ teamId }) {
       </Alert>
     );
   }
-
-  const formColors = {
-    W: 'green',
-    D: 'yellow',
-    L: 'red',
-  };
 
   return (
     <Box>

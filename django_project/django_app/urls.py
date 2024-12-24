@@ -26,4 +26,8 @@ urlpatterns = [
     # Analytics endpoints
     path('analytics/overview/', views.AnalyticsOverviewView.as_view(), name='analytics-overview'),
     path('analytics/team/<int:team_id>/', views.TeamAnalyticsView.as_view(), name='team-analytics'),
+    path('analytics/competition/<int:competition_id>/', views.CompetitionAnalyticsView.as_view(), name='competition-analytics'),
+    path('analytics/match/<int:match_id>/', views.MatchAnalyticsView.as_view(), name='match-analytics'),
+    path('analytics/player/<int:player_id>/', views.PlayerAnalyticsView.as_view(), name='player-analytics'),
+    path('analytics/team-comparison/<int:team1_id>/<int:team2_id>/', views.TeamComparisonView.as_view(), name='team-comparison'),
 ]

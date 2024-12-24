@@ -1,57 +1,53 @@
 import axios from 'axios';
 
+// Base API configuration
 const BASE_URL = 'http://localhost:8001/api';
 
 const api = axios.create({
     baseURL: BASE_URL,
     headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-    },
-    timeout: 30000,
-    withCredentials: false,  // Changed to false since we're using CORS_ALLOW_ALL_ORIGINS
+        'Accept': 'application/json'
+    }
 });
 
-// Request Interceptor
+// Add request interceptor for debugging
 api.interceptors.request.use(
     (config) => {
-        console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`);
+        const fullUrl = `${config.baseURL}${config.url}`;
+        console.log('Making API request:', {
+            method: config.method,
+            url: fullUrl,
+            headers: config.headers,
+            data: config.data
+        });
         return config;
     },
     (error) => {
         console.error('API Request Error:', error);
-        return Promise.reject({
-            message: 'Failed to connect to server. Please check your connection.',
-            originalError: error,
-        });
+        return Promise.reject(error);
     }
 );
 
-// Response Interceptor
+// Add response interceptor for debugging
 api.interceptors.response.use(
     (response) => {
-        console.log(`API Response from ${response.config.url}:`, response.status);
+        console.log('API Response:', {
+            url: response.config.url,
+            status: response.status,
+            data: response.data
+        });
         return response;
     },
     (error) => {
-        console.error('API Response Error:', error);
-        if (!error.response) {
-            return Promise.reject({
-                message: 'Unable to reach server. Please check your connection.',
-                status: 'NETWORK_ERROR',
-                originalError: error,
-            });
-        }
-        const message =
-            error.response.data?.message ||
-            error.response.data?.detail ||
-            error.response.data?.error ||
-            'An unexpected error occurred. Please try again.';
-        return Promise.reject({
-            message,
-            status: error.response.status,
-            originalError: error,
+        console.error('API Response Error:', {
+            message: error.message,
+            response: error.response ? {
+                status: error.response.status,
+                data: error.response.data
+            } : 'No response'
         });
+        return Promise.reject(error);
     }
 );
 
@@ -62,7 +58,45 @@ const apiService = {
     getDashboardScorers: () => api.get('dashboard/top-scorers/'),
 
     // Matches
-    getMatches: () => api.get('matches/'),
+    getMatches: async (page = 1, filters = {}) => {
+        try {
+            console.log('Fetching matches with filters:', filters);
+            let url = `/matches/?page=${page}`;
+            
+            // Add filters to URL
+            if (filters.status) url += `&status=${filters.status}`;
+            if (filters.competition) url += `&competition=${filters.competition}`;
+            if (filters.team) url += `&team=${filters.team}`;
+            if (filters.dateFrom) url += `&date_from=${filters.dateFrom}`;
+            if (filters.dateTo) url += `&date_to=${filters.dateTo}`;
+
+            const response = await api.get(url);
+            
+            // Validate response structure
+            if (!response || !response.results) {
+                throw new Error('Invalid matches response format');
+            }
+
+            // Format the matches data
+            const formattedMatches = response.results.map(match => ({
+                ...match,
+                match_date: match.match_date || new Date().toISOString(),
+                home_team_score: match.home_team_score || 0,
+                away_team_score: match.away_team_score || 0,
+                status: match.status || 'SCHEDULED'
+            }));
+
+            return {
+                results: formattedMatches,
+                count: response.count || 0,
+                next: response.next || null,
+                previous: response.previous || null
+            };
+        } catch (error) {
+            console.error('Error in getMatches:', error);
+            throw error;
+        }
+    },
     getMatchDetails: (id) => api.get(`matches/${id}/`),
     getMatchAnalytics: (id) => api.get(`analytics/match/${id}/`),
 
@@ -87,65 +121,22 @@ const apiService = {
     },
     getTeamAnalytics: async (teamId) => {
         try {
-            console.log('Making API request for team analytics:', teamId);
-            const url = `analytics/team/${teamId}/`;  // Added trailing slash
-            console.log('Full API URL:', `${BASE_URL}/${url}`);
-            
-            const response = await api.get(url);
-            console.log('Raw API response:', response);
-            console.log('Response status:', response?.status);
-            console.log('Response data:', response?.data);
-            
-            // Check if response has the expected structure
-            if (!response || !response.data) {
-                console.error('Invalid response:', response);
-                throw new Error('No response data received from server');
+            console.log('Fetching team analytics for ID:', teamId);
+            // Use the same URL pattern that works with direct axios call
+            const response = await api.get(`/analytics/team/${teamId}/`);
+            console.log('Team analytics raw response:', response);
+
+            // Extract data from response
+            const data = response.data;
+            console.log('Team analytics data:', data);
+
+            if (!data) {
+                throw new Error('No data received from server');
             }
 
-            // Log the actual response structure
-            console.log('Response data structure:', {
-                hasData: !!response.data,
-                hasSummary: !!response.data.summary,
-                hasPerformance: Array.isArray(response.data.performance),
-                summaryKeys: response.data.summary ? Object.keys(response.data.summary) : [],
-                performanceLength: Array.isArray(response.data.performance) ? response.data.performance.length : 0
-            });
-
-            // Validate summary object
-            const summary = response.data.summary;
-            if (!summary || typeof summary !== 'object') {
-                throw new Error('Invalid summary data in response');
-            }
-
-            // Validate required summary fields
-            const requiredSummaryFields = [
-                'total_matches', 'wins', 'draws', 'losses',
-                'goals_for', 'goals_against', 'goal_difference',
-                'points', 'average_points'
-            ];
-            
-            const missingSummaryFields = requiredSummaryFields.filter(field => !(field in summary));
-            if (missingSummaryFields.length > 0) {
-                throw new Error(`Missing required summary fields: ${missingSummaryFields.join(', ')}`);
-            }
-
-            // Validate performance array
-            const performance = response.data.performance;
-            if (!Array.isArray(performance)) {
-                throw new Error('Performance data must be an array');
-            }
-
-            // If all validations pass, return the response
-            return response;
+            return data;
         } catch (error) {
-            console.error('Error fetching team analytics:', error);
-            if (error.response) {
-                console.error('Error response:', {
-                    status: error.response.status,
-                    statusText: error.response.statusText,
-                    data: error.response.data
-                });
-            }
+            console.error('Error in getTeamAnalytics:', error);
             throw error;
         }
     },
@@ -185,13 +176,14 @@ const apiService = {
     },
 
     // Generic CRUD
-    get: async (endpoint) => {
+    get: async (url) => {
         try {
-            const response = await api.get(endpoint);
-            console.log('API Response from ' + endpoint + ':', response.status);
+            console.log(`Making GET request to: ${url}`);
+            const response = await api.get(url);
+            console.log('GET response:', response);
             return response.data;
         } catch (error) {
-            console.error('API Error:', error);
+            console.error(`GET request failed for ${url}:`, error);
             throw error;
         }
     },
