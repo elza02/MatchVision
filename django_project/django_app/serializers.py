@@ -187,7 +187,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Player
         fields = [
-            'id', 'name', 'position', 'date_of_birth', 'nationality',
+            'id', 'name', 'section', 'date_of_birth', 'nationality',
             'team', 'team_name', 'age'
         ]
 
@@ -195,7 +195,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         # Ensure required fields have default values
         data['name'] = instance.name or 'Unknown Player'
-        data['position'] = instance.position or 'Unknown Position'
+        data['section'] = instance.section or 'Unknown section'
         data['nationality'] = instance.nationality or 'Unknown Nationality'
         data['team_name'] = data.get('team_name') or 'Unknown Team'
         return data

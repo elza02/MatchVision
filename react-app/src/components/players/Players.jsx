@@ -24,7 +24,7 @@ import {
 } from '@chakra-ui/react';
 import { FiSearch } from 'react-icons/fi';
 import apiService from '../../services/api';
-
+// age
 const Players = () => {
   const [players, setPlayers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +58,7 @@ const Players = () => {
       player.name.toLowerCase().includes(searchLower) ||
       (player.team_name && player.team_name.toLowerCase().includes(searchLower)) ||
       (player.nationality && player.nationality.toLowerCase().includes(searchLower)) ||
-      (player.position && player.position.toLowerCase().includes(searchLower))
+      (player.section && player.section.toLowerCase().includes(searchLower))
     );
   });
 
@@ -109,7 +109,7 @@ const Players = () => {
               <Tr>
                 <Th>Name</Th>
                 <Th>Team</Th>
-                <Th>Position</Th>
+                <Th>section</Th>
                 <Th isNumeric>Age</Th>
                 <Th>Nationality</Th>
               </Tr>
@@ -124,12 +124,12 @@ const Players = () => {
                     <Text>{player.team_name || 'Unknown Team'}</Text>
                   </Td>
                   <Td>
-                    <Tag colorScheme={getPositionColor(player.position)}>
-                      {player.position || 'Unknown'}
+                    <Tag colorScheme={getsectionColor(player.section)}>
+                      {player.section || 'Unknown'}
                     </Tag>
                   </Td>
                   <Td isNumeric>
-                    {player.age || 'N/A'}
+                    {player.date_of_birth || 'N/A'}
                   </Td>
                   <Td>
                     {player.nationality || 'Unknown'}
@@ -144,13 +144,13 @@ const Players = () => {
   );
 };
 
-const getPositionColor = (position) => {
-  if (!position) return 'gray';
-  position = position.toLowerCase();
-  if (position.includes('forward') || position.includes('striker')) return 'red';
-  if (position.includes('midfielder')) return 'green';
-  if (position.includes('defender')) return 'blue';
-  if (position.includes('goalkeeper')) return 'yellow';
+const getsectionColor = (section) => {
+  if (!section) return 'gray';
+  section = section.toLowerCase();
+  if (section.includes('forward') || section.includes('striker')) return 'red';
+  if (section.includes('midfielder')) return 'green';
+  if (section.includes('defender')) return 'blue';
+  if (section.includes('goalkeeper')) return 'yellow';
   return 'gray';
 };
 

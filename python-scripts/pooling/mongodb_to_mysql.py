@@ -186,7 +186,7 @@ def add_player_if_not_exist(player, team_id, cursor, connection) -> Union[None, 
     PLAYER MODEL SCHEMA:
     id = 
     name = 
-    position = 
+    section = 
     date_of_birth =
     nationality =
     team =
@@ -205,14 +205,14 @@ def add_player_if_not_exist(player, team_id, cursor, connection) -> Union[None, 
         # Insert the player into the database
         query = """
         INSERT INTO players
-        (id, name, position, date_of_birth, nationality, team_id)
+        (id, name, section, date_of_birth, nationality, team_id)
         VALUES (%s, %s, %s, %s, %s, %s)
-        """
-        mysql_date_of_birth = date_converter(player.get('date_of_birth', None))
+        """ 
+        mysql_date_of_birth = date_converter(player.get('dateOfBirth', None))
         cursor.execute(query, (
             player.get('id', None), 
             player.get('name', None), 
-            player.get('position', None), 
+            player.get('section', None), 
             mysql_date_of_birth,  # Converted date
             player.get('nationality', None), 
             team_id

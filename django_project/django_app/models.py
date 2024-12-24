@@ -17,7 +17,6 @@ class Team(models.Model):
      
     class Meta:
         db_table = 'teams'
-        managed = False  # Tell Django this table already exists
 
     def __str__(self):
         return self.name or self.short_name or f"Team {self.id}"
@@ -54,7 +53,7 @@ class Coach(models.Model):
 
 class Player(models.Model):
     name = models.CharField(max_length=100, null=True)
-    position = models.CharField(max_length=50, null=True)
+    section = models.CharField(max_length=50, null=True)
     date_of_birth = models.DateField(null=True)
     nationality = models.CharField(max_length=100, null=True)
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players', null=True)
@@ -70,7 +69,6 @@ class Area(models.Model):
 
     class Meta:
         db_table = 'areas'
-        managed = False  # Tell Django this table already exists
 
     def __str__(self):
         return self.name
