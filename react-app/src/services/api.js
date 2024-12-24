@@ -53,9 +53,35 @@ api.interceptors.response.use(
 
 const apiService = {
     // Dashboard
-    getDashboardStats: () => api.get('dashboard/stats/'),
-    getDashboardMatches: () => api.get('dashboard/upcoming-matches/'),
-    getDashboardScorers: () => api.get('dashboard/top-scorers/'),
+    getDashboardStats: async () => {
+        try {
+            const response = await api.get('/dashboard/stats/');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching dashboard stats:', error);
+            throw error;
+        }
+    },
+
+    getUpcomingMatches: async () => {
+        try {
+            const response = await api.get('/dashboard/upcoming-matches/');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching upcoming matches:', error);
+            throw error;
+        }
+    },
+
+    getTopScorers: async () => {
+        try {
+            const response = await api.get('/dashboard/top-scorers/');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching top scorers:', error);
+            throw error;
+        }
+    },
 
     // Matches
     getMatches: async (page = 1, filters = {}) => {
