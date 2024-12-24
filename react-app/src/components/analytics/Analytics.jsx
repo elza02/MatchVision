@@ -94,8 +94,8 @@ function Analytics() {
     try {
       const response = await api.getTeams();
       console.log('Teams data:', response);
-      if (response && response.data) {
-        setTeams(response.data);
+      if (response && response.data && response.data.results) {
+        setTeams(response.data.results);
       } else {
         setTeams([]);
         console.error('Invalid teams response:', response);
@@ -119,15 +119,46 @@ function Analytics() {
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching analytics for team:', teamId);
+      
       const response = await api.getTeamAnalytics(teamId);
-      console.log('Team analytics data:', response);
+      console.log('Team analytics response:', response);
+      
+      // Log the data structure we received
+      console.log('Team analytics data structure:', {
+        hasData: !!response.data,
+        hasSummary: !!response.data?.summary,
+        hasPerformance: Array.isArray(response.data?.performance),
+        summaryKeys: response.data?.summary ? Object.keys(response.data.summary) : [],
+        performanceLength: Array.isArray(response.data?.performance) ? response.data.performance.length : 0
+      });
+
+      // Validate the response data
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
+
+      const { summary, performance } = response.data;
+
+      // Validate summary
+      if (!summary || typeof summary !== 'object') {
+        throw new Error('Invalid summary data');
+      }
+
+      // Validate performance
+      if (!Array.isArray(performance)) {
+        throw new Error('Invalid performance data');
+      }
+
+      // Set the analytics data
       setTeamAnalytics(response.data);
+      
     } catch (err) {
       console.error('Error fetching team analytics:', err);
       setError(err.message || 'Failed to fetch team analytics');
       toast({
         title: 'Error',
-        description: 'Failed to fetch team analytics',
+        description: err.message || 'Failed to fetch team analytics',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -144,6 +175,7 @@ function Analytics() {
 
   useEffect(() => {
     if (selectedTeam) {
+      console.log('Selected team changed:', selectedTeam);
       fetchTeamAnalytics(selectedTeam);
     } else {
       setTeamAnalytics(null);
@@ -251,7 +283,11 @@ function Analytics() {
             <Box mb={4}>
               <Select
                 value={selectedTeam || ''}
-                onChange={(e) => setSelectedTeam(e.target.value)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  console.log('Selected team value:', value);
+                  setSelectedTeam(value);
+                }}
                 placeholder="Select a team"
                 isDisabled={!teams || teams.length === 0}
               >
@@ -263,7 +299,29 @@ function Analytics() {
               </Select>
             </Box>
 
-            {teamAnalytics?.summary && (
+            {loading && (
+              <Center p={8}>
+                <Spinner size="xl" />
+              </Center>
+            )}
+
+            {error && (
+              <Alert status="error" mb={4}>
+                <AlertIcon />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {!loading && !error && selectedTeam && !teamAnalytics?.summary && (
+              <Alert status="info" mb={4}>
+                <AlertIcon />
+                <AlertTitle>No Data</AlertTitle>
+                <AlertDescription>No analytics data available for this team.</AlertDescription>
+              </Alert>
+            )}
+
+            {!loading && !error && teamAnalytics?.summary && (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <Card>
                   <CardHeader>
@@ -309,15 +367,19 @@ function Analytics() {
                     <CardBody>
                       <Box height="300px">
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={teamAnalytics.performance}>
+                          <LineChart 
+                            data={teamAnalytics.performance}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis 
-                              dataKey="match_date"
+                              dataKey="match_date" 
                               tickFormatter={(value) => new Date(value).toLocaleDateString()}
                             />
                             <YAxis />
                             <Tooltip 
                               labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                              formatter={(value, name) => [value, name === 'running_points' ? 'Total Points' : 'Average Points']}
                             />
                             <Legend />
                             <Line
@@ -325,12 +387,14 @@ function Analytics() {
                               dataKey="running_points"
                               stroke="#8884d8"
                               name="Total Points"
+                              dot={false}
                             />
                             <Line
                               type="monotone"
                               dataKey="average_points"
                               stroke="#82ca9d"
                               name="Average Points"
+                              dot={false}
                             />
                           </LineChart>
                         </ResponsiveContainer>

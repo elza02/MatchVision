@@ -131,10 +131,10 @@ class MatchListView(APIView):
             
         except Exception as e:
             print(f"Error in MatchListView: {str(e)}")
-            return Response({
-                'error': str(e),
-                'message': 'Failed to fetch matches'
-            }, status=500)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class MatchDetailView(generics.RetrieveAPIView):
     queryset = Match.objects.all()
@@ -351,8 +351,14 @@ class AnalyticsOverviewView(APIView):
 class TeamAnalyticsView(APIView):
     def get(self, request, team_id):
         try:
+            print(f"\n=== TeamAnalyticsView ===")
+            print(f"Request method: {request.method}")
+            print(f"Request path: {request.path}")
+            print(f"Team ID: {team_id}")
+            
             # Verify team exists
             team = get_object_or_404(Team, id=team_id)
+            print(f"Found team: {team.name} (ID: {team.id})")
             
             # Get team's matches
             matches = Match.objects.filter(
@@ -360,19 +366,27 @@ class TeamAnalyticsView(APIView):
                 status='FINISHED'
             ).order_by('match_date')
             
+            match_count = matches.count()
+            print(f"Found {match_count} matches for team")
+            
             if not matches.exists():
-                return Response({
+                print("No matches found for team")
+                response_data = {
                     'performance': [],
-                    'top_scorers': [],
                     'summary': {
                         'total_matches': 0,
                         'wins': 0,
                         'draws': 0,
                         'losses': 0,
                         'goals_for': 0,
-                        'goals_against': 0
+                        'goals_against': 0,
+                        'goal_difference': 0,
+                        'points': 0,
+                        'average_points': 0
                     }
-                })
+                }
+                print("Returning empty response:", response_data)
+                return Response(response_data)
             
             # Calculate performance metrics
             performance = []
@@ -384,6 +398,7 @@ class TeamAnalyticsView(APIView):
             goals_for = 0
             goals_against = 0
             
+            print("\nProcessing matches:")
             for match in matches:
                 total_matches += 1
                 
@@ -391,10 +406,13 @@ class TeamAnalyticsView(APIView):
                 is_home = match.home_team == team
                 team_score = match.home_team_score if is_home else match.away_team_score
                 opponent_score = match.away_team_score if is_home else match.home_team_score
+                opponent = match.away_team if is_home else match.home_team
                 
                 # Handle None values
                 team_score = team_score or 0
                 opponent_score = opponent_score or 0
+                
+                print(f"Match {total_matches}: {team.name} vs {opponent.name} - Score: {team_score}-{opponent_score}")
                 
                 # Update statistics
                 goals_for += team_score
@@ -404,23 +422,29 @@ class TeamAnalyticsView(APIView):
                 if team_score > opponent_score:
                     points = 3
                     wins += 1
+                    result = 'W'
                 elif team_score == opponent_score:
                     points = 1
                     draws += 1
+                    result = 'D'
                 else:
                     points = 0
                     losses += 1
+                    result = 'L'
                 
                 running_points += points
                 
-                performance.append({
+                match_data = {
                     'match_date': match.match_date.strftime('%Y-%m-%d'),
-                    'opponent': match.away_team.name if is_home else match.home_team.name,
+                    'opponent': opponent.name,
                     'score': f"{team_score}-{opponent_score}",
+                    'result': result,
                     'points': points,
                     'running_points': running_points,
                     'average_points': round(running_points / total_matches, 2)
-                })
+                }
+                print(f"Match data: {match_data}")
+                performance.append(match_data)
             
             response_data = {
                 'performance': performance,
@@ -437,15 +461,22 @@ class TeamAnalyticsView(APIView):
                 }
             }
             
+            print("\nFinal response data:")
+            print("Summary:", response_data['summary'])
+            print(f"Performance entries: {len(response_data['performance'])}")
+            
             return Response(response_data)
             
         except Team.DoesNotExist:
+            print(f"Team {team_id} not found")
             return Response(
                 {'error': 'Team not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             print(f"Error in TeamAnalyticsView: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

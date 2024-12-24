@@ -20,6 +20,10 @@ import {
   Badge,
   Spinner,
   useToast,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
 } from '@chakra-ui/react';
 import {
   LineChart,
@@ -38,29 +42,65 @@ import apiService from '../../services/api';
 function TeamAnalytics({ teamId }) {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
-    fetchTeamAnalytics();
-  }, [teamId]);
+    const fetchTeamAnalytics = async () => {
+      if (!teamId) return;
 
-  const fetchTeamAnalytics = async () => {
-    try {
-      setLoading(true);
-      const response = await apiService.getTeamAnalytics(teamId);
-      setAnalytics(response.data);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load team analytics',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('Fetching analytics for team:', teamId);
+        const response = await apiService.getTeamAnalytics(teamId);
+        console.log('Team analytics response:', response);
+
+        // Validate response data
+        if (!response || !response.data) {
+          throw new Error('No data received from server');
+        }
+
+        const { summary, performance } = response.data;
+
+        // Validate summary
+        if (!summary || typeof summary !== 'object') {
+          throw new Error('Invalid summary data');
+        }
+
+        // Validate performance array
+        if (!Array.isArray(performance)) {
+          throw new Error('Invalid performance data');
+        }
+
+        // Format dates in performance data
+        const formattedData = {
+          ...response.data,
+          performance: performance.map(match => ({
+            ...match,
+            match_date: new Date(match.match_date).toISOString().split('T')[0]
+          }))
+        };
+
+        console.log('Setting formatted analytics data:', formattedData);
+        setAnalytics(formattedData);
+      } catch (error) {
+        console.error('Error fetching team analytics:', error);
+        setError(error.message || 'Failed to fetch team analytics');
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to fetch team analytics',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeamAnalytics();
+  }, [teamId, toast]);
 
   if (loading) {
     return (
@@ -70,8 +110,24 @@ function TeamAnalytics({ teamId }) {
     );
   }
 
-  if (!analytics) {
-    return <Box>No analytics data available</Box>;
+  if (error) {
+    return (
+      <Alert status="error" mb={4}>
+        <AlertIcon />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!analytics || !analytics.summary) {
+    return (
+      <Alert status="info" mb={4}>
+        <AlertIcon />
+        <AlertTitle>No Data</AlertTitle>
+        <AlertDescription>No analytics data available for this team.</AlertDescription>
+      </Alert>
+    );
   }
 
   const formColors = {
@@ -91,16 +147,16 @@ function TeamAnalytics({ teamId }) {
             <StatGroup>
               <Stat>
                 <StatLabel>Matches</StatLabel>
-                <StatNumber>{analytics.match_statistics.total_matches}</StatNumber>
+                <StatNumber>{analytics.summary.total_matches}</StatNumber>
               </Stat>
               <Stat>
                 <StatLabel>Goals Scored</StatLabel>
-                <StatNumber>{analytics.match_statistics.total_goals_scored}</StatNumber>
+                <StatNumber>{analytics.summary.goals_for}</StatNumber>
               </Stat>
               <Stat>
                 <StatLabel>Win Rate</StatLabel>
                 <StatNumber>
-                  {((analytics.match_statistics.total_wins / analytics.match_statistics.total_matches) * 100).toFixed(1)}%
+                  {((analytics.summary.wins / analytics.summary.total_matches) * 100).toFixed(1)}%
                 </StatNumber>
               </Stat>
             </StatGroup>
@@ -113,10 +169,10 @@ function TeamAnalytics({ teamId }) {
           </CardHeader>
           <CardBody>
             <Box display="flex" gap={2}>
-              {analytics.form_analysis.map((match, index) => (
+              {analytics.performance.slice(-5).map((match, index) => (
                 <Badge
                   key={index}
-                  colorScheme={formColors[match.result]}
+                  colorScheme={match.result === 'W' ? 'green' : match.result === 'D' ? 'yellow' : 'red'}
                   fontSize="lg"
                   p={2}
                 >
@@ -130,27 +186,43 @@ function TeamAnalytics({ teamId }) {
 
         <Card>
           <CardHeader>
-            <Heading size="md">Top Scorers</Heading>
+            <Heading size="md">Points Trend</Heading>
           </CardHeader>
           <CardBody>
-            <Table size="sm">
-              <Thead>
-                <Tr>
-                  <Th>Player</Th>
-                  <Th isNumeric>Goals</Th>
-                  <Th isNumeric>Assists</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {analytics.top_scorers.map((scorer) => (
-                  <Tr key={scorer.id}>
-                    <Td>{scorer.player_name}</Td>
-                    <Td isNumeric>{scorer.goals}</Td>
-                    <Td isNumeric>{scorer.assists}</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+            <Box h="300px">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart 
+                  data={analytics.performance}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="match_date" 
+                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                  />
+                  <YAxis />
+                  <Tooltip 
+                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                    formatter={(value, name) => [value, name === 'running_points' ? 'Total Points' : 'Average Points']}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="running_points"
+                    stroke="#8884d8"
+                    name="Total Points"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="average_points"
+                    stroke="#82ca9d"
+                    name="Average Points"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Box>
           </CardBody>
         </Card>
       </SimpleGrid>
@@ -158,7 +230,7 @@ function TeamAnalytics({ teamId }) {
       <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
         <Card>
           <CardHeader>
-            <Heading size="md">Home vs Away Performance</Heading>
+            <Heading size="md">Results Distribution</Heading>
           </CardHeader>
           <CardBody>
             <Box h="300px">
@@ -167,18 +239,15 @@ function TeamAnalytics({ teamId }) {
                   data={[
                     {
                       name: 'Wins',
-                      home: analytics.match_statistics.home_performance.wins,
-                      away: analytics.match_statistics.away_performance.wins,
+                      value: analytics.summary.wins,
                     },
                     {
                       name: 'Draws',
-                      home: analytics.match_statistics.home_performance.draws,
-                      away: analytics.match_statistics.away_performance.draws,
+                      value: analytics.summary.draws,
                     },
                     {
                       name: 'Losses',
-                      home: analytics.match_statistics.home_performance.losses,
-                      away: analytics.match_statistics.away_performance.losses,
+                      value: analytics.summary.losses,
                     },
                   ]}
                 >
@@ -186,9 +255,7 @@ function TeamAnalytics({ teamId }) {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Legend />
-                  <Bar dataKey="home" fill="#2196f3" name="Home" />
-                  <Bar dataKey="away" fill="#f50057" name="Away" />
+                  <Bar dataKey="value" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
             </Box>
@@ -202,17 +269,15 @@ function TeamAnalytics({ teamId }) {
           <CardBody>
             <Box h="300px">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <BarChart
                   data={[
                     {
-                      name: 'Home',
-                      scored: analytics.match_statistics.home_performance.goals_scored,
-                      conceded: analytics.match_statistics.home_performance.goals_conceded,
+                      name: 'Goals For',
+                      value: analytics.summary.goals_for,
                     },
                     {
-                      name: 'Away',
-                      scored: analytics.match_statistics.away_performance.goals_scored,
-                      conceded: analytics.match_statistics.away_performance.goals_conceded,
+                      name: 'Goals Against',
+                      value: analytics.summary.goals_against,
                     },
                   ]}
                 >
@@ -220,10 +285,8 @@ function TeamAnalytics({ teamId }) {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="scored" stroke="#4caf50" name="Goals Scored" />
-                  <Line type="monotone" dataKey="conceded" stroke="#f44336" name="Goals Conceded" />
-                </LineChart>
+                  <Bar dataKey="value" fill="#8884d8" />
+                </BarChart>
               </ResponsiveContainer>
             </Box>
           </CardBody>
