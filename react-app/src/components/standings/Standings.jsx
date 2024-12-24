@@ -10,12 +10,14 @@ import {
   Image,
   Text,
   Flex,
-  Select,
   Spinner,
   useToast,
   Badge,
-  Tooltip,
+  Alert,
+  AlertIcon,
+  Icon,
 } from '@chakra-ui/react';
+import { FaMedal } from 'react-icons/fa';
 import apiService from '../../services/api';
 
 function Standings({ competitionId, season }) {
@@ -26,11 +28,19 @@ function Standings({ competitionId, season }) {
 
   useEffect(() => {
     const fetchStandings = async () => {
+      if (!competitionId || !season) return;
+      
       try {
         setLoading(true);
         setError(null);
-        const data = await apiService.getStandings(competitionId, season);
-        setStandings(data);
+        const response = await apiService.getStandings(competitionId, season);
+        if (response?.standings && Array.isArray(response.standings)) {
+          // Sort standings by position
+          const sortedStandings = response.standings.sort((a, b) => a.position - b.position);
+          setStandings(sortedStandings);
+        } else {
+          setError('No standings data available');
+        }
       } catch (error) {
         console.error('Error fetching standings:', error);
         setError(error.message || 'Failed to fetch standings');
@@ -58,6 +68,15 @@ function Standings({ competitionId, season }) {
     }
   };
 
+  const getMedalColor = (position) => {
+    switch (position) {
+      case 1: return 'gold';
+      case 2: return 'silver';
+      case 3: return '#CD7F32'; // bronze
+      default: return null;
+    }
+  };
+
   const renderForm = (form) => {
     if (!form) return null;
     return form.split(',').map((result, index) => (
@@ -82,9 +101,19 @@ function Standings({ competitionId, season }) {
 
   if (error) {
     return (
-      <Box p={4} bg="red.100" color="red.900" borderRadius="md">
+      <Alert status="error" borderRadius="md">
+        <AlertIcon />
         {error}
-      </Box>
+      </Alert>
+    );
+  }
+
+  if (!standings || standings.length === 0) {
+    return (
+      <Alert status="info" borderRadius="md">
+        <AlertIcon />
+        No standings data available for this competition and season
+      </Alert>
     );
   }
 
@@ -107,50 +136,56 @@ function Standings({ competitionId, season }) {
           </Tr>
         </Thead>
         <Tbody>
-          {standings.map((standing) => (
-            <Tr
-              key={standing.id}
-              _hover={{ bg: 'gray.50' }}
-              transition="background-color 0.2s"
-            >
-              <Td textAlign="center" px={2}>
-                <Badge
-                  colorScheme={standing.position <= 4 ? 'green' : 
-                             standing.position >= standings.length - 3 ? 'red' : 
-                             'gray'}
-                >
-                  {standing.position}
-                </Badge>
+          {standings.map((team) => (
+            <Tr key={team.id}>
+              <Td textAlign="center">
+                <Flex align="center" justify="center" gap={1}>
+                  <Badge
+                    colorScheme={team.position <= 4 ? 'green' : 
+                              team.position >= standings.length - 3 ? 'red' : 
+                              'gray'}
+                  >
+                    {team.position}
+                  </Badge>
+                  {team.position <= 3 && (
+                    <Icon
+                      as={FaMedal}
+                      color={getMedalColor(team.position)}
+                      w={4}
+                      h={4}
+                    />
+                  )}
+                </Flex>
               </Td>
               <Td>
                 <Flex align="center" gap={2}>
                   <Image
-                    src={standing.team_crest}
-                    alt={standing.team_name}
+                    src={team?.team_crest}
+                    alt={team?.name}
                     boxSize="24px"
                     objectFit="contain"
                     fallbackSrc="https://via.placeholder.com/24"
                   />
-                  <Text fontWeight="medium">{standing.team_name}</Text>
+                  <Text fontWeight="medium">{team?.team_name}</Text>
                 </Flex>
               </Td>
-              <Td isNumeric>{standing.played_games}</Td>
-              <Td isNumeric>{standing.won}</Td>
-              <Td isNumeric>{standing.draw}</Td>
-              <Td isNumeric>{standing.lost}</Td>
-              <Td isNumeric>{standing.goals_for}</Td>
-              <Td isNumeric>{standing.goals_against}</Td>
+              <Td isNumeric>{team.played_games}</Td>
+              <Td isNumeric>{team.won}</Td>
+              <Td isNumeric>{team.draw}</Td>
+              <Td isNumeric>{team.lost}</Td>
+              <Td isNumeric>{team.goals_for}</Td>
+              <Td isNumeric>{team.goals_against}</Td>
               <Td isNumeric>
-                <Text color={standing.goal_difference > 0 ? 'green.500' : 
-                          standing.goal_difference < 0 ? 'red.500' : 
+                <Text color={team.goal_difference > 0 ? 'green.500' : 
+                          team.goal_difference < 0 ? 'red.500' : 
                           'gray.500'}>
-                  {standing.goal_difference > 0 ? '+' : ''}{standing.goal_difference}
+                  {team.goal_difference > 0 ? '+' : ''}{team.goal_difference}
                 </Text>
               </Td>
-              <Td isNumeric fontWeight="bold">{standing.points}</Td>
+              <Td isNumeric fontWeight="bold">{team.points}</Td>
               <Td>
                 <Flex gap={1}>
-                  {renderForm(standing.form)}
+                  {renderForm(team.form)}
                 </Flex>
               </Td>
             </Tr>

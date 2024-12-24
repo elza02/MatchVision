@@ -175,36 +175,37 @@ const apiService = {
     getPlayerAnalytics: (id) => api.get(`/analytics/player/${id}/`),
 
     // Competitions
-    getCompetitions: () => api.get('competitions/'),
-    getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
-    getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
+    getCompetitions: async () => {
+        try {
+            const response = await api.get('/competitions/');
+            // Return the data directly since it's already an array
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching competitions:', error);
+            throw error;
+        }
+    },
 
     // Standings
     getStandings: async (competitionId, season) => {
         try {
-            console.log('Fetching standings:', { competitionId, season });
-            let url = '/standings/';
-            const params = new URLSearchParams();
+            // Get standings for the specific competition and season
+            const response = await api.get('/standings/', {
+                params: {
+                    competition: competitionId,
+                    season: season
+                }
+            });
             
-            if (competitionId) {
-                params.append('competition', competitionId);
-            }
-            if (season) {
-                params.append('season', season);
-            }
-
-            if (params.toString()) {
-                url += `?${params.toString()}`;
-            }
-
-            const response = await api.get(url);
-            console.log('Standings response:', response.data);
-            return response.data;
+            // Return the standings array
+            return { standings: response.data };
         } catch (error) {
             console.error('Error fetching standings:', error);
             throw error;
         }
     },
+    getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
+    getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
     // Analytics
     getAnalyticsOverview: async () => {
