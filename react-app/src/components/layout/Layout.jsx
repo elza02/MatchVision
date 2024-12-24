@@ -1,23 +1,15 @@
-import { Box } from '@chakra-ui/react';
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import { Box, Container } from '@chakra-ui/react';
 import Navbar from './Navbar';
-import Sidebar from './Sidebar';
 
-function Layout({ children }) {
+function Layout() {
   return (
-    <Box display="flex" minH="100vh">
-      <Sidebar />
-      <Box flex="1" ml="250px">
-        <Navbar />
-        <Box
-          as="main"
-          p={6}
-          maxW="1600px"
-          mx="auto"
-          minH="calc(100vh - 64px)"
-        >
-          {children}
-        </Box>
-      </Box>
+    <Box minH="100vh" bg="gray.50">
+      <Navbar />
+      <Container maxW="container.xl" py={8}>
+        <Outlet />
+      </Container>
     </Box>
   );
 }

@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
-from .models import Team, Competition, Match, TopScorer, Player, Area
+from .models import Team, Competition, Match, TopScorer, Player, Area, Standing
 from .serializers import (
     TeamSerializer,
     CompetitionSerializer,
@@ -13,7 +13,8 @@ from .serializers import (
     TeamAnalyticsSerializer,
     CompetitionAnalyticsSerializer,
     MatchAnalyticsSerializer,
-    PlayerAnalyticsSerializer
+    PlayerAnalyticsSerializer,
+    StandingSerializer
 )
 from django.db import connection
 from django.db import models
@@ -598,3 +599,26 @@ class TeamComparisonView(APIView):
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class StandingListView(generics.ListAPIView):
+    serializer_class = StandingSerializer
+    
+    def get_queryset(self):
+        queryset = Standing.objects.select_related('team', 'competition', 'area').all()
+        
+        # Filter by competition if provided
+        competition_id = self.request.query_params.get('competition', None)
+        if competition_id:
+            queryset = queryset.filter(competition_id=competition_id)
+            
+        # Filter by season if provided
+        season = self.request.query_params.get('season', None)
+        if season:
+            queryset = queryset.filter(season=season)
+            
+        # Order by position by default
+        return queryset.order_by('position')
+
+class StandingDetailView(generics.RetrieveAPIView):
+    queryset = Standing.objects.select_related('team', 'competition', 'area').all()
+    serializer_class = StandingSerializer

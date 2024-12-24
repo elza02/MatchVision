@@ -153,6 +153,33 @@ const apiService = {
     getCompetitionDetails: (id) => api.get(`/competitions/${id}/`),
     getCompetitionAnalytics: (id) => api.get(`/analytics/competition/${id}/`),
 
+    // Standings
+    getStandings: async (competitionId, season) => {
+        try {
+            console.log('Fetching standings:', { competitionId, season });
+            let url = '/standings/';
+            const params = new URLSearchParams();
+            
+            if (competitionId) {
+                params.append('competition', competitionId);
+            }
+            if (season) {
+                params.append('season', season);
+            }
+
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+
+            const response = await api.get(url);
+            console.log('Standings response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching standings:', error);
+            throw error;
+        }
+    },
+
     // Analytics
     getAnalyticsOverview: async () => {
         try {

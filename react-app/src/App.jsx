@@ -1,30 +1,31 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ChakraProvider } from '@chakra-ui/react';
-import theme from './theme';
+import { ChakraProvider, Box } from '@chakra-ui/react';
 import Layout from './components/layout/Layout';
-import Dashboard from './components/Dashboard';
-import CompetitionList from './components/competitions/CompetitionList';
-import Competitions from './components/competitions/Competitions';
+import Dashboard from './components/dashboard/Dashboard';
 import Teams from './components/teams/Teams';
 import Players from './components/players/Players';
 import Matches from './components/matches/Matches';
 import Analytics from './components/analytics/Analytics';
+import StandingsPage from './components/standings/StandingsPage';
+import theme from './theme';
 
 function App() {
   return (
     <ChakraProvider theme={theme}>
       <Router>
-        <Layout>
+        <Box minH="100vh" bg="gray.50">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/competitions" element={<CompetitionList />} />
-            <Route path="/competitions/:id/*" element={<Competitions />} />
-            <Route path="/teams/*" element={<Teams />} />
-            <Route path="/players/*" element={<Players />} />
-            <Route path="/matches/*" element={<Matches />} />
-            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="/teams/*" element={<Teams />} />
+              <Route path="/players/*" element={<Players />} />
+              <Route path="/matches/*" element={<Matches />} />
+              <Route path="/standings" element={<StandingsPage />} />
+              <Route path="/analytics" element={<Analytics />} />
+            </Route>
           </Routes>
-        </Layout>
+        </Box>
       </Router>
     </ChakraProvider>
   );

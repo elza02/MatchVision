@@ -140,10 +140,31 @@ class TopScorerSerializer(serializers.ModelSerializer):
 
 class StandingSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source='team.name', read_only=True)
+    team_crest = serializers.URLField(source='team.crest', read_only=True)
+    competition_name = serializers.CharField(source='competition.name', read_only=True)
+    area_name = serializers.CharField(source='area.name', read_only=True)
     
     class Meta:
         model = Standing
-        fields = ['id', 'team', 'team_name', 'position', 'points', 'goals_diff', 'goals_for', 'goals_against', 'played_games']
+        fields = [
+            'id', 'team', 'team_name', 'team_crest',
+            'competition', 'competition_name',
+            'area', 'area_name',
+            'position', 'played_games', 'form',
+            'won', 'draw', 'lost', 'points',
+            'goals_for', 'goals_against', 'goal_difference',
+            'season'
+        ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Ensure required fields have default values
+        data['team_name'] = data.get('team_name') or 'Unknown Team'
+        data['team_crest'] = data.get('team_crest') or f'https://crests.football-data.org/{instance.team_id}.png'
+        data['competition_name'] = data.get('competition_name') or 'Unknown Competition'
+        data['area_name'] = data.get('area_name') or 'Unknown Area'
+        data['form'] = instance.form or ''
+        return data
 
 class CoachSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source='team.name', read_only=True)

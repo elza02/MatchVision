@@ -23,6 +23,10 @@ urlpatterns = [
     path('competitions/', views.CompetitionListView.as_view(), name='competition-list'),
     path('competitions/<int:pk>/', views.CompetitionDetailView.as_view(), name='competition-detail'),
 
+    # Standings
+    path('standings/', views.StandingListView.as_view(), name='standing-list'),
+    path('standings/<int:pk>/', views.StandingDetailView.as_view(), name='standing-detail'),
+
     # Analytics endpoints
     path('analytics/overview/', views.AnalyticsOverviewView.as_view(), name='analytics-overview'),
     path('analytics/team/<int:team_id>/', views.TeamAnalyticsView.as_view(), name='team-analytics'),
