@@ -23,15 +23,25 @@ from django.shortcuts import get_object_or_404
 class DashboardStatsView(APIView):
     def get(self, request):
         try:
-            # Get total counts only
+            # Get total counts
             total_teams = Team.objects.count()
-            total_matches = Match.objects.count()
             total_players = Player.objects.count()
+            
+            # Get match counts by status
+            total_matches = Match.objects.count()
+            finished_matches = Match.objects.filter(status='FINISHED').count()
+            scheduled_matches = Match.objects.filter(status='SCHEDULED').count()
+            other_matches = total_matches - (finished_matches + scheduled_matches)
 
             response_data = {
                 "total_teams": total_teams,
-                "total_matches": total_matches,
-                "total_players": total_players
+                "total_players": total_players,
+                "matches": {
+                    "total": total_matches,
+                    "finished": finished_matches,
+                    "scheduled": scheduled_matches,
+                    "other": other_matches
+                }
             }
 
             print("Stats response data:", response_data)
@@ -258,96 +268,81 @@ class MatchPredictionsView(APIView):
         return Response(predictions)
 
 class AnalyticsOverviewView(APIView):
-    def calculate_goals_trend(self, matches):
-        goals_trend = []
-        try:
-            if matches:
-                matches = matches.order_by('match_date')
-                running_total = 0
-                match_count = 0
-                
-                for match in matches:
-                    if match.match_date:  # Only include matches with valid dates
-                        match_count += 1
-                        match_goals = (match.home_team_score or 0) + (match.away_team_score or 0)
-                        running_total += match_goals
-                        goals_trend.append({
-                            'matchday': match_count,
-                            'average_goals': round(running_total / match_count, 2),
-                            'date': match.match_date.strftime('%Y-%m-%d')
-                        })
-        except Exception as e:
-            print(f"Error calculating goals trend: {str(e)}")
-            return []
-        return goals_trend
-
     def get(self, request):
         try:
-            # Get all matches with status check
-            matches = Match.objects.filter(status='FINISHED')
-            if not matches.exists():
-                return Response({
-                    'summary': {
-                        'total_matches': 0,
-                        'total_goals': 0,
-                        'average_goals_per_match': 0,
-                        'total_teams': 0
-                    },
-                    'goals_trend': [],
-                    'area_stats': []
-                })
+            # Get match statistics
+            total_matches = Match.objects.count()
+            finished_matches = Match.objects.filter(status='FINISHED').count()
+            scheduled_matches = Match.objects.filter(status='SCHEDULED').count()
+            other_matches = total_matches - (finished_matches + scheduled_matches)
 
-            total_matches = matches.count()
+            # Get goals statistics
+            matches = Match.objects.filter(status='FINISHED')
+            total_goals = sum([m.home_team_score + m.away_team_score for m in matches if m.home_team_score is not None and m.away_team_score is not None])
+            avg_goals = round(total_goals / finished_matches if finished_matches > 0 else 0, 2)
+
+            # Get goals trend
+            goals_trend = []
+            for match in matches.order_by('match_date'):
+                if match.home_team_score is not None and match.away_team_score is not None:
+                    match_goals = match.home_team_score + match.away_team_score
+                    goals_trend.append({
+                        'matchday': match.match_date.strftime('%Y-%m-%d'),
+                        'goals': match_goals,
+                        'average_goals': match_goals
+                    })
+
+            # Get scorer statistics
+            scorer_stats = []
+            top_scorers = TopScorer.objects.all()
             
-            # Calculate total goals safely handling None values
-            total_goals = sum(
-                (match.home_team_score or 0) + (match.away_team_score or 0) 
-                for match in matches
-            )
-            
-            # Calculate goals trend
-            goals_trend = self.calculate_goals_trend(matches)
-            
-            # Calculate area statistics
-            teams = Team.objects.all()
-            total_teams = teams.count()
-            area_counts = {}
-            
-            for team in teams:
-                area_name = team.area.name if team.area else "Unknown"  # Get area name directly
-                area_counts[area_name] = area_counts.get(area_name, 0) + 1
-            
-            area_stats = [
-                {
-                    'name': area_name,
-                    'team_count': count
-                }
-                for area_name, count in area_counts.items()
-                if area_name  # Filter out any remaining None values
-            ]
-            
-            # Sort area_stats by team_count in descending order
-            area_stats = sorted(area_stats, key=lambda x: x['team_count'], reverse=True)
-            
+            # Get goals range distribution
+            goals_ranges = {
+                '20+ goals': top_scorers.filter(goals__gte=20).count(),
+                '15-19 goals': top_scorers.filter(goals__range=(15, 19)).count(),
+                '10-14 goals': top_scorers.filter(goals__range=(10, 14)).count(),
+                '5-9 goals': top_scorers.filter(goals__range=(5, 9)).count(),
+                '1-4 goals': top_scorers.filter(goals__range=(1, 4)).count(),
+            }
+
+            # Get performance metrics
+            performance_stats = {
+                'High Impact': top_scorers.filter(goals__gte=10, assists__gte=5).count(),
+                'Pure Scorer': top_scorers.filter(goals__gte=10, assists__lt=5).count(),
+                'Playmaker': top_scorers.filter(goals__lt=10, assists__gte=5).count(),
+                'Regular': top_scorers.filter(goals__lt=10, assists__lt=5).count(),
+            }
+
             response_data = {
                 'summary': {
                     'total_matches': total_matches,
                     'total_goals': total_goals,
-                    'average_goals_per_match': round(total_goals / total_matches, 2) if total_matches > 0 else 0,
-                    'total_teams': total_teams
+                    'average_goals_per_match': avg_goals,
+                    'total_teams': Team.objects.count(),
+                    'matches_by_status': {
+                        'total': total_matches,
+                        'finished': finished_matches,
+                        'scheduled': scheduled_matches,
+                        'other': other_matches
+                    }
                 },
                 'goals_trend': goals_trend,
-                'area_stats': area_stats
+                'scorer_stats': {
+                    'goals_distribution': [
+                        {'name': range_name, 'value': count}
+                        for range_name, count in goals_ranges.items()
+                    ],
+                    'performance_types': [
+                        {'name': perf_type, 'value': count}
+                        for perf_type, count in performance_stats.items()
+                    ]
+                }
             }
-            
+
             return Response(response_data)
-            
         except Exception as e:
-            print(f"Error in AnalyticsOverviewView: {str(e)}")
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            print(f"Error in analytics overview: {str(e)}")
+            return Response({'error': str(e)}, status=500)
 
 class TeamAnalyticsView(APIView):
     def get(self, request, team_id):

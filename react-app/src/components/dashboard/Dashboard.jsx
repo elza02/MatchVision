@@ -23,19 +23,57 @@ import {
   Alert,
   AlertIcon,
 } from '@chakra-ui/react';
-import { FiUsers, FiActivity, FiAward, FiCalendar } from 'react-icons/fi';
+import { FiUsers, FiActivity, FiAward, FiCalendar, FiPieChart } from 'react-icons/fi';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import apiService from '../../services/api';
 
-function StatsCard({ title, stat, icon, description }) {
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
+
+function StatsCard({ title, stat, icon, description, matchData }) {
   const { colorMode } = useColorMode();
-  
+  const bgColor = colorMode === 'light' ? 'white' : 'gray.800';
+  const textColor = colorMode === 'light' ? 'gray.600' : 'gray.400';
+
+  const renderPieChart = (data) => {
+    if (!data) return null;
+    
+    const chartData = [
+      { name: 'Finished', value: data.finished },
+      { name: 'Scheduled', value: data.scheduled },
+      { name: 'Other', value: data.other },
+    ];
+
+    return (
+      <Box height="100px" width="100%">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={25}
+              outerRadius={40}
+              paddingAngle={2}
+              dataKey="value"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </Box>
+    );
+  };
+
   return (
     <Stat
       px={{ base: 4, md: 8 }}
       py="5"
       shadow="base"
       rounded="lg"
-      bg={colorMode === 'light' ? 'white' : 'gray.800'}
+      bg={bgColor}
     >
       <Flex justifyContent="space-between">
         <Box pl={2}>
@@ -55,6 +93,7 @@ function StatsCard({ title, stat, icon, description }) {
           <Icon as={icon} w={8} h={8} />
         </Box>
       </Flex>
+      {matchData && renderPieChart(matchData)}
     </Stat>
   );
 }
@@ -242,7 +281,7 @@ function Dashboard() {
     <Box>
       <Heading mb={6}>Dashboard</Heading>
       
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={{ base: 5, lg: 8 }} mb={8}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={{ base: 5, lg: 8 }} mb={8}>
         <StatsCard
           title="Total Teams"
           stat={stats?.total_teams || '-'}
@@ -251,9 +290,10 @@ function Dashboard() {
         />
         <StatsCard
           title="Total Matches"
-          stat={stats?.total_matches || '-'}
+          stat={stats?.matches?.total || '-'}
           icon={FiActivity}
-          description="Total matches recorded"
+          description={`${stats?.matches?.finished || 0} finished, ${stats?.matches?.scheduled || 0} scheduled`}
+          matchData={stats?.matches}
         />
         <StatsCard
           title="Total Players"
@@ -261,12 +301,12 @@ function Dashboard() {
           icon={FiAward}
           description="Players in database"
         />
-        {/* <StatsCard
-          title="Next Match"
-          stat={upcomingMatches?.[0] ? new Date(upcomingMatches[0].match_date).toLocaleDateString() : '-'}
-          icon={FiCalendar}
-          description={upcomingMatches?.[0] ? `${upcomingMatches[0].home_team_name} vs ${upcomingMatches[0].away_team_name}` : 'No upcoming matches'}
-        /> */}
+        <StatsCard
+          title="Match Status"
+          stat={`${((stats?.matches?.finished || 0) / (stats?.matches?.total || 1) * 100).toFixed(0)}%`}
+          icon={FiPieChart}
+          description={`${stats?.matches?.other || 0} other status matches`}
+        />
       </SimpleGrid>
 
       <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={8}>

@@ -1,178 +1,181 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
+  Container,
+  Heading,
   SimpleGrid,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Card,
   CardHeader,
   CardBody,
-  Heading,
-  Select,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  Stack,
   Text,
-  Spinner,
-  useToast,
   Stat,
   StatLabel,
   StatNumber,
   StatHelpText,
-  Container,
+  useColorMode,
+  Flex,
+  Icon,
+  Skeleton,
   Alert,
   AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  Center
+  Select,
+  Center,
 } from '@chakra-ui/react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import api from '../../services/api';
-import axios from 'axios';
+import { FiUsers, FiActivity, FiAward, FiTrendingUp } from 'react-icons/fi';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell } from 'recharts';
+import apiService from '../../services/api';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-const CHART_HEIGHT = 400;
-const CHART_WIDTH = 800;
-const CHART_ASPECT = 2;
-const PIE_CHART_HEIGHT = 600;
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
 
-const ChartContainer = ({ children, height = CHART_HEIGHT, aspect = CHART_ASPECT }) => (
-  <Box width="100%" minH={height}>
-    <ResponsiveContainer width="100%" height={height} aspect={aspect} debounce={1}>
-      {children}
-    </ResponsiveContainer>
-  </Box>
-);
+function OverviewCard({ title, stat, trend, icon, description }) {
+  const { colorMode } = useColorMode();
+  return (
+    <Stat
+      px={{ base: 4, md: 8 }}
+      py={5}
+      shadow="base"
+      rounded="lg"
+      bg={colorMode === 'light' ? 'white' : 'gray.800'}
+    >
+      <Flex justifyContent="space-between">
+        <Box pl={2}>
+          <StatLabel fontWeight="medium" isTruncated>
+            {title}
+          </StatLabel>
+          <StatNumber fontSize="2xl" fontWeight="medium">
+            {stat}
+          </StatNumber>
+          <StatHelpText mb={0}>
+            {description}
+          </StatHelpText>
+        </Box>
+        <Box p={2}>
+          <Icon as={icon} w={8} h={8} />
+        </Box>
+      </Flex>
+    </Stat>
+  );
+}
 
 function Analytics() {
+  const [tabIndex, setTabIndex] = useState(0);
   const [overview, setOverview] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [teams, setTeams] = useState([]);
   const [teamAnalytics, setTeamAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tabIndex, setTabIndex] = useState(0);
-  const toast = useToast();
-
-  const fetchOverview = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.getAnalyticsOverview();
-      console.log('Overview data:', response);
-      setOverview(response);
-    } catch (err) {
-      console.error('Error fetching overview:', err);
-      setError(err.message || 'Failed to fetch analytics overview');
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch analytics overview',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTeams = async () => {
-    try {
-      const response = await api.getTeams();
-      console.log('Teams data:', response);
-      if (response && response.data && response.data.results) {
-        setTeams(response.data.results);
-      } else {
-        setTeams([]);
-        console.error('Invalid teams response:', response);
-      }
-    } catch (err) {
-      console.error('Error fetching teams:', err);
-      setTeams([]);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch teams',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const fetchTeamAnalytics = async (teamId) => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('Fetching analytics for team:', teamId);
-      
-      const response = await api.getTeamAnalytics(teamId);
-      console.log('Team analytics response:', response);
-      
-      if (!response || !response.performance || !response.summary) {
-        console.error('Invalid data structure:', response);
-        throw new Error('Invalid data structure received');
-      }
-
-      setTeamAnalytics(response);
-    } catch (error) {
-      console.error('Error fetching team analytics:', error);
-      setError(error.message || 'Failed to fetch team analytics');
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to fetch team analytics',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { colorMode } = useColorMode();
 
   useEffect(() => {
     fetchOverview();
     fetchTeams();
   }, []);
 
-  useEffect(() => {
-    if (selectedTeam) {
-      console.log('Selected team changed:', selectedTeam);
-      fetchTeamAnalytics(selectedTeam);
-    } else {
-      setTeamAnalytics(null);
+  const fetchOverview = async () => {
+    try {
+      const response = await apiService.getAnalyticsOverview();
+      setOverview(response);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load analytics data');
+      setLoading(false);
     }
-  }, [selectedTeam]);
+  };
 
-  if (loading && !overview && !teamAnalytics) {
+  const fetchTeams = async () => {
+    try {
+      const response = await apiService.getTeams();
+      if (response?.data?.results) {
+        setTeams(response.data.results);
+      }
+    } catch (err) {
+      console.error('Error fetching teams:', err);
+      setTeams([]);
+    }
+  };
+
+  const fetchTeamAnalytics = async (teamId) => {
+    try {
+      setLoading(true);
+      const response = await apiService.getTeamAnalytics(teamId);
+      setTeamAnalytics(response);
+    } catch (err) {
+      console.error('Error fetching team analytics:', err);
+      setError('Failed to load team analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderMatchStatusPieChart = () => {
+    if (!overview?.summary?.matches_by_status) return null;
+
+    const chartData = [
+      { name: 'Finished', value: overview.summary.matches_by_status.finished },
+      { name: 'Scheduled', value: overview.summary.matches_by_status.scheduled },
+      { name: 'Other', value: overview.summary.matches_by_status.other },
+    ];
+
     return (
-      <Center p={8}>
-        <Spinner size="xl" />
-      </Center>
+      <Card>
+        <CardHeader>
+          <Heading size="md">Match Status Distribution</Heading>
+        </CardHeader>
+        <CardBody>
+          <Box height="300px">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip formatter={(value) => [value, 'Matches']} />
+              </PieChart>
+            </ResponsiveContainer>
+          </Box>
+        </CardBody>
+      </Card>
+    );
+  };
+
+  if (loading && !overview) {
+    return (
+      <Container maxW="container.xl" p={4}>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} height="200px" />
+          ))}
+        </SimpleGrid>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Alert status="error">
-        <AlertIcon />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <Container maxW="container.xl" p={4}>
+        <Alert status="error">
+          <AlertIcon />
+          {error}
+        </Alert>
+      </Container>
     );
   }
 
@@ -181,68 +184,60 @@ function Analytics() {
       <Tabs index={tabIndex} onChange={setTabIndex}>
         <TabList mb={4}>
           <Tab>Overview</Tab>
-          <Tab>Team Analysis</Tab>
-          <Tab>Teams by Area</Tab>
+          <Tab>Teams</Tab>
+          <Tab>Players</Tab>
         </TabList>
 
         <TabPanels>
-          <TabPanel>
-            {overview?.summary && (
+          <TabPanel p={0}>
+            {overview && (
               <>
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={8}>
-                  <Card>
-                    <CardBody>
-                      <Stat>
-                        <StatLabel>Total Matches</StatLabel>
-                        <StatNumber>{overview.summary.total_matches}</StatNumber>
-                      </Stat>
-                    </CardBody>
-                  </Card>
-                  <Card>
-                    <CardBody>
-                      <Stat>
-                        <StatLabel>Total Goals</StatLabel>
-                        <StatNumber>{overview.summary.total_goals}</StatNumber>
-                        <StatHelpText>
-                          Avg: {overview.summary.average_goals_per_match} per match
-                        </StatHelpText>
-                      </Stat>
-                    </CardBody>
-                  </Card>
-                  <Card>
-                    <CardBody>
-                      <Stat>
-                        <StatLabel>Total Teams</StatLabel>
-                        <StatNumber>{overview.summary.total_teams}</StatNumber>
-                      </Stat>
-                    </CardBody>
-                  </Card>
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={6}>
+                  <OverviewCard
+                    title="Total Teams"
+                    stat={overview.summary.total_teams}
+                    icon={FiUsers}
+                    description="Active teams"
+                  />
+                  <OverviewCard
+                    title="Total Matches"
+                    stat={overview.summary.matches_by_status.total}
+                    icon={FiActivity}
+                    description={`${overview.summary.matches_by_status.finished} finished matches`}
+                  />
+                  <OverviewCard
+                    title="Total Goals"
+                    stat={overview.summary.total_goals}
+                    icon={FiAward}
+                    description={`Avg ${overview.summary.average_goals_per_match} per match`}
+                  />
+                  <OverviewCard
+                    title="Goals Trend"
+                    stat={overview.goals_trend?.[overview.goals_trend.length - 1]?.average_goals || '-'}
+                    icon={FiTrendingUp}
+                    description="Average goals per match"
+                  />
                 </SimpleGrid>
 
-                {overview.goals_trend && overview.goals_trend.length > 0 && (
+                <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={6}>
+                  {renderMatchStatusPieChart()}
                   <Card>
                     <CardHeader>
                       <Heading size="md">Goals Trend</Heading>
                     </CardHeader>
                     <CardBody>
-                      <Box height="400px">
-                        <ResponsiveContainer width="100%" height="100%">
+                      <Box height="300px">
+                        <ResponsiveContainer>
                           <LineChart data={overview.goals_trend}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis 
-                              dataKey="date"
-                              tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                            />
+                            <XAxis dataKey="matchday" />
                             <YAxis />
-                            <Tooltip 
-                              labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                            />
-                            <Legend />
+                            <RechartsTooltip />
                             <Line
                               type="monotone"
                               dataKey="average_goals"
                               stroke="#8884d8"
-                              name="Average Goals"
+                              strokeWidth={2}
                               dot={false}
                             />
                           </LineChart>
@@ -250,24 +245,23 @@ function Analytics() {
                       </Box>
                     </CardBody>
                   </Card>
-                )}
+                </SimpleGrid>
               </>
             )}
           </TabPanel>
-
           <TabPanel>
             <Box mb={4}>
               <Select
                 value={selectedTeam || ''}
                 onChange={(e) => {
                   const value = parseInt(e.target.value);
-                  console.log('Selected team value:', value);
                   setSelectedTeam(value);
+                  fetchTeamAnalytics(value);
                 }}
                 placeholder="Select a team"
                 isDisabled={!teams || teams.length === 0}
               >
-                {Array.isArray(teams) && teams.map((team) => (
+                {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
                   </option>
@@ -275,29 +269,9 @@ function Analytics() {
               </Select>
             </Box>
 
-            {loading && (
-              <Center p={8}>
-                <Spinner size="xl" />
-              </Center>
-            )}
+            {loading && <Center p={8}><Skeleton height="200px" /></Center>}
 
-            {error && (
-              <Alert status="error" mb={4}>
-                <AlertIcon />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {!loading && !error && selectedTeam && !teamAnalytics?.summary && (
-              <Alert status="info" mb={4}>
-                <AlertIcon />
-                <AlertTitle>No Data</AlertTitle>
-                <AlertDescription>No analytics data available for this team.</AlertDescription>
-              </Alert>
-            )}
-
-            {!loading && !error && teamAnalytics?.summary && (
+            {teamAnalytics && !loading && (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <Card>
                   <CardHeader>
@@ -307,57 +281,52 @@ function Analytics() {
                     <SimpleGrid columns={2} spacing={4}>
                       <Stat>
                         <StatLabel>Matches</StatLabel>
-                        <StatNumber>{teamAnalytics.summary.total_matches}</StatNumber>
+                        <StatNumber>{teamAnalytics.summary?.total_matches || 0}</StatNumber>
                       </Stat>
                       <Stat>
                         <StatLabel>Points</StatLabel>
-                        <StatNumber>{teamAnalytics.summary.points}</StatNumber>
+                        <StatNumber>{teamAnalytics.summary?.points || 0}</StatNumber>
                         <StatHelpText>
-                          Avg: {teamAnalytics.summary.average_points} per match
+                          Avg: {teamAnalytics.summary?.average_points || 0} per match
                         </StatHelpText>
                       </Stat>
                       <Stat>
                         <StatLabel>Record</StatLabel>
                         <StatNumber>
-                          {teamAnalytics.summary.wins}W-{teamAnalytics.summary.draws}D-{teamAnalytics.summary.losses}L
+                          {teamAnalytics.summary?.wins || 0}W-{teamAnalytics.summary?.draws || 0}D-{teamAnalytics.summary?.losses || 0}L
                         </StatNumber>
                       </Stat>
                       <Stat>
                         <StatLabel>Goals</StatLabel>
                         <StatNumber>
-                          {teamAnalytics.summary.goals_for}-{teamAnalytics.summary.goals_against}
+                          {teamAnalytics.summary?.goals_for || 0}-{teamAnalytics.summary?.goals_against || 0}
                         </StatNumber>
                         <StatHelpText>
-                          Diff: {teamAnalytics.summary.goal_difference}
+                          Diff: {teamAnalytics.summary?.goal_difference || 0}
                         </StatHelpText>
                       </Stat>
                     </SimpleGrid>
                   </CardBody>
                 </Card>
 
-                {teamAnalytics.performance && teamAnalytics.performance.length > 0 && (
+                {teamAnalytics.performance && (
                   <Card>
                     <CardHeader>
                       <Heading size="md">Points Progression</Heading>
                     </CardHeader>
                     <CardBody>
                       <Box height="300px">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart 
-                            data={teamAnalytics.performance}
-                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                          >
+                        <ResponsiveContainer>
+                          <LineChart data={teamAnalytics.performance}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis 
                               dataKey="match_date" 
                               tickFormatter={(value) => new Date(value).toLocaleDateString()}
                             />
                             <YAxis />
-                            <Tooltip 
+                            <RechartsTooltip 
                               labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                              formatter={(value, name) => [value, name === 'running_points' ? 'Total Points' : 'Average Points']}
                             />
-                            <Legend />
                             <Line
                               type="monotone"
                               dataKey="running_points"
@@ -381,113 +350,66 @@ function Analytics() {
               </SimpleGrid>
             )}
           </TabPanel>
-
           <TabPanel>
-            {overview?.area_stats && overview.area_stats.length > 0 && (
-              <Box>
-                <Card>
-                  <CardHeader>
-                    <Heading size="md">Teams Distribution by Area</Heading>
-                    <Text mt={2} color="gray.600">
-                      Overview of how teams are distributed across different areas
-                    </Text>
-                  </CardHeader>
-                  <CardBody p={0}>
-                    <Box height="800px">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={overview.area_stats}
-                            dataKey="team_count"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius="90%"
-                            innerRadius="40%"
-                            paddingAngle={2}
-                            label={({
-                              cx,
-                              cy,
-                              midAngle,
-                              innerRadius,
-                              outerRadius,
-                              value,
-                              name
-                            }) => {
-                              const RADIAN = Math.PI / 180;
-                              const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                              const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                              const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                              return (
-                                <text
-                                  x={x}
-                                  y={y}
-                                  fill="white"
-                                  textAnchor={x > cx ? 'start' : 'end'}
-                                  dominantBaseline="central"
-                                  style={{
-                                    fontSize: '16px',
-                                    fontWeight: 'bold',
-                                    textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
-                                  }}
-                                >
-                                  {`${name}`}
-                                </text>
-                              );
-                            }}
-                          >
-                            {overview.area_stats.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={COLORS[index % COLORS.length]}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value, name) => [`${value} teams`, name]}
-                            contentStyle={{
-                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                              borderRadius: '8px',
-                              padding: '12px',
-                              fontSize: '14px',
-                              boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-                            }}
-                          />
-                          <Legend 
-                            verticalAlign="middle"
-                            align="right"
-                            layout="vertical"
-                            iconSize={12}
-                            wrapperStyle={{
-                              fontSize: '14px',
-                              paddingRight: '20px',
-                              right: 0,
-                              width: 'auto'
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </Box>
-                  </CardBody>
-                </Card>
+            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
+              <Card>
+                <CardHeader>
+                  <Heading size="md">Goals Distribution</Heading>
+                  <Text mt={2} color="gray.600">Distribution of players by goals scored</Text>
+                </CardHeader>
+                <CardBody>
+                  <Box height="300px">
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie
+                          data={overview.scorer_stats.goals_distribution}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        >
+                          {overview.scorer_stats.goals_distribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip formatter={(value) => [`${value} players`]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </CardBody>
+              </Card>
 
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
-                  {overview.area_stats.map((stat) => (
-                    <Card key={stat.name}>
-                      <CardBody>
-                        <Stat>
-                          <StatLabel>{stat.name}</StatLabel>
-                          <StatNumber>{stat.team_count}</StatNumber>
-                          <StatHelpText>
-                            {((stat.team_count / overview.summary.total_teams) * 100).toFixed(1)}% of total teams
-                          </StatHelpText>
-                        </Stat>
-                      </CardBody>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              </Box>
-            )}
+              <Card>
+                <CardHeader>
+                  <Heading size="md">Player Performance Types</Heading>
+                  <Text mt={2} color="gray.600">Classification of players by their impact</Text>
+                </CardHeader>
+                <CardBody>
+                  <Box height="300px">
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie
+                          data={overview.scorer_stats.performance_types}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        >
+                          {overview.scorer_stats.performance_types.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip formatter={(value) => [`${value} players`]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </CardBody>
+              </Card>
+            </SimpleGrid>
           </TabPanel>
         </TabPanels>
       </Tabs>
