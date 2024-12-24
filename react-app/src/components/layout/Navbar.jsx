@@ -1,96 +1,117 @@
 import React from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
-  Container,
   Flex,
-  IconButton,
-  Input,
-  InputGroup,
-  InputLeftElement,
-  useColorMode,
-  Link,
   HStack,
+  Link,
+  IconButton,
+  Button,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  useDisclosure,
+  useColorMode,
+  useColorModeValue,
+  Image,
   Text,
 } from '@chakra-ui/react';
-import { FiSearch, FiMoon, FiSun } from 'react-icons/fi';
+import { HamburgerIcon, CloseIcon, MoonIcon, SunIcon } from '@chakra-ui/icons';
+import { FaFutbol, FaUsers, FaTrophy, FaChartBar } from 'react-icons/fa';
+import logo from '../../assets/logo.svg';
 
-function Navbar() {
+const Links = [
+  { name: 'Matches', to: '/matches', icon: FaFutbol },
+  { name: 'Teams', to: '/teams', icon: FaUsers },
+  { name: 'Standings', to: '/standings', icon: FaTrophy },
+  { name: 'Analytics', to: '/analytics', icon: FaChartBar },
+];
+
+const Navbar = () => {
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const { colorMode, toggleColorMode } = useColorMode();
-  const location = useLocation();
-
-  const navItems = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Teams', path: '/teams' },
-    { label: 'Players', path: '/players' },
-    { label: 'Matches', path: '/matches' },
-    { label: 'Standings', path: '/standings' },
-    { label: 'Analytics', path: '/analytics' },
-  ];
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   return (
-    <Box
-      as="nav"
-      bg={colorMode === 'light' ? 'white' : 'gray.800'}
-      py={4}
-      borderBottom="1px"
-      borderColor={colorMode === 'light' ? 'gray.200' : 'gray.700'}
-    >
-      <Container maxW="container.xl">
-        <Flex justify="space-between" align="center">
-          <Text fontSize="xl" fontWeight="bold" color="brand.500">
-            Football Analytics
-          </Text>
-
-          <HStack spacing={8}>
-            {navItems.map((item, index) => (
+    <Box bg={bgColor} px={4} borderBottom="1px" borderColor={borderColor}>
+      <Flex h={16} alignItems="center" justifyContent="space-between">
+        <IconButton
+          size="md"
+          icon={isOpen ? <CloseIcon /> : <HamburgerIcon />}
+          aria-label="Open Menu"
+          display={{ md: 'none' }}
+          onClick={isOpen ? onClose : onOpen}
+        />
+        
+        <HStack spacing={8} alignItems="center">
+          <Box>
+            <RouterLink to="/">
+              <Flex align="center" gap={2}>
+                <Image src={logo} alt="Logo" boxSize="40px" />
+                <Text fontSize="lg" fontWeight="bold" display={{ base: 'none', md: 'block' }}>
+                  Football Analytics
+                </Text>
+              </Flex>
+            </RouterLink>
+          </Box>
+          <HStack as="nav" spacing={4} display={{ base: 'none', md: 'flex' }}>
+            {Links.map((link) => (
               <Link
-                key={index}
+                key={link.name}
                 as={RouterLink}
-                to={item.path}
-                px={3}
-                py={2}
+                to={link.to}
+                px={2}
+                py={1}
                 rounded="md"
-                color={colorMode === 'light' ? 'gray.700' : 'gray.300'}
                 _hover={{
                   textDecoration: 'none',
-                  bg: colorMode === 'light' ? 'gray.100' : 'gray.700',
-                  color: colorMode === 'light' ? 'brand.500' : 'white',
+                  bg: useColorModeValue('gray.200', 'gray.700'),
                 }}
-                bg={location.pathname === item.path ? (colorMode === 'light' ? 'gray.100' : 'gray.700') : 'transparent'}
-                fontWeight={location.pathname === item.path ? 'bold' : 'medium'}
-                borderBottom={location.pathname === item.path ? '2px' : '0'}
-                borderColor="brand.500"
               >
-                {item.label}
+                <Flex align="center" gap={2}>
+                  <link.icon />
+                  {link.name}
+                </Flex>
               </Link>
             ))}
           </HStack>
+        </HStack>
 
-          <HStack spacing={4}>
-            <InputGroup maxW="300px" display={{ base: 'none', md: 'block' }}>
-              <InputLeftElement pointerEvents="none">
-                <FiSearch color={colorMode === 'light' ? 'gray.400' : 'gray.600'} />
-              </InputLeftElement>
-              <Input 
-                placeholder="Search..." 
-                variant="filled"
-                _placeholder={{ color: colorMode === 'light' ? 'gray.400' : 'gray.600' }}
-              />
-            </InputGroup>
-
-            <IconButton
-              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
-              onClick={toggleColorMode}
+        <Flex alignItems="center">
+          <IconButton
+            aria-label="Toggle Dark Mode"
+            icon={colorMode === 'dark' ? <SunIcon /> : <MoonIcon />}
+            onClick={toggleColorMode}
+            variant="ghost"
+            mr={2}
+          />
+          
+          <Menu>
+            <MenuButton
+              as={Button}
               variant="ghost"
-              aria-label="Toggle color mode"
-              color={colorMode === 'light' ? 'gray.700' : 'gray.300'}
-            />
-          </HStack>
+              size="sm"
+              display={{ base: 'block', md: 'none' }}
+            >
+              Menu
+            </MenuButton>
+            <MenuList>
+              {Links.map((link) => (
+                <MenuItem key={link.name} as={RouterLink} to={link.to}>
+                  <Flex align="center" gap={2}>
+                    <link.icon />
+                    {link.name}
+                  </Flex>
+                </MenuItem>
+              ))}
+            </MenuList>
+          </Menu>
         </Flex>
-      </Container>
+      </Flex>
     </Box>
   );
-}
+};
 
 export default Navbar;
