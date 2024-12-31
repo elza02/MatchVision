@@ -74,7 +74,7 @@ services:
     image: mysql:8.0
     container_name: mysql-football
     environment:
-      MYSQL_ROOT_PASSWORD: houcine  # Set up only the root user
+      MYSQL_ROOT_PASSWORD: houcine
     ports:
       - "3307:3306"
     volumes:
@@ -92,14 +92,6 @@ services:
       - "27018:27017"
     volumes:
       - mongo_data:/data/db
-    networks:
-      - app-network
-
-  redis:
-    image: redis:6.2-alpine
-    container_name: redis-football
-    ports:
-      - "6380:6379"
     networks:
       - app-network
 
