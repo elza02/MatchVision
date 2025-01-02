@@ -101,7 +101,7 @@ The system consists of the following components:
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/username/football-analytics-system.git
+   git clone https://github.com/elza02/MatchVision.git
    ```
 2. Navigate to the project directory:
    ```bash
